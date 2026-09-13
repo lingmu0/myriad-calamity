@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "myriad_calamity:cogwork_theatre",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 36,
+    "separation": 12,
+    "salt": 19470351
+  }
+}

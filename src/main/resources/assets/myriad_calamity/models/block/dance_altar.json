@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "myriad_calamity:block/dance_altar_side",
+    "down": "minecraft:block/deepslate_tiles",
+    "up": "myriad_calamity:block/dance_altar_top",
+    "north": "myriad_calamity:block/dance_altar_side",
+    "south": "myriad_calamity:block/dance_altar_side",
+    "east": "myriad_calamity:block/dance_altar_side",
+    "west": "myriad_calamity:block/dance_altar_side"
+  }
+}

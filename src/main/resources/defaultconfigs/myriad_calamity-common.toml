@@ -1,0 +1,4 @@
+# 万象灾厄 / Myriad Calamity common configuration
+# These values apply when a new Cogwork Dancer encounter is summoned.
+bossHealth = 480.0
+bossDamage = 9.0

@@ -5,3 +5,8 @@ run-data/
 .idea/
 *.iml
 .work/
+
+__pycache__/
+*.pyc
+
+logs/

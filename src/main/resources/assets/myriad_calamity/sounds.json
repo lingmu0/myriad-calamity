@@ -1,0 +1,34 @@
+{
+  "music.cogwork_dancer_phase1": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/cogwork_dancer_phase1",
+        "stream": true
+      }
+    ]
+  },
+  "music.cogwork_dancer_phase2": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/cogwork_dancer_phase2",
+        "stream": true
+      }
+    ]
+  },
+  "music.cogwork_dancer_phase3": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/cogwork_dancer_phase3",
+        "stream": true
+      }
+    ]
+  },
+  "music.cogwork_dancer_phase4": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/cogwork_dancer_phase4",
+        "stream": true
+      }
+    ]
+  }
+}
