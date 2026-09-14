@@ -28,7 +28,7 @@ jsons={str(p.relative_to(RES)).replace('\\','/'):json.loads(p.read_text('utf8'))
 langs=[jsons[f'assets/{NS}/lang/{lang}.json'] for lang in ['zh_cn','en_us']]
 check(langs[0].keys()==langs[1].keys(),'Language keys must match')
 for phase in range(1,5):check(f'boss.{NS}.phase{phase}' in langs[0],f'Phase {phase} label')
-for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg']:
+for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_talisman','divine_sigil','yang_jian_spawn_egg']:
     model=jsons[f'assets/{NS}/models/item/{name}.json']
     check(f'item.{NS}.{name}' in langs[0],f'Item name: {name}')
     for texture in model.get('textures',{}).values():
@@ -36,7 +36,8 @@ for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg']:
         if namespace==NS:check((RES/f'assets/{NS}/textures/{relative}.png').exists(),f'Model texture: {texture}')
 for png in RES.rglob('*.png'):
     dimensions=read_png(png)
-    check(dimensions==((256,256) if png.parent.name=='entity' else (32,32)),f'Texture dimensions: {png}')
+    expected = {'yang_jian.png': (2048,2048), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
+    check(dimensions==expected.get(png.name, (256,256) if png.parent.name=='entity' else (32,32)),f'Texture dimensions: {png}')
 recipe=jsons[f'data/{NS}/recipe/winding_key.json']
 check(recipe['result']['id']==f'{NS}:winding_key','1.21 recipe item id')
 check(set(''.join(recipe['pattern']))-{' '}==recipe['key'].keys(),'Recipe key coverage')
@@ -59,6 +60,12 @@ default_config=RES/'defaultconfigs/myriad_calamity-common.toml'
 check(default_config.exists(),'Default common config packaged')
 config_text=default_config.read_text('utf8')
 check('bossHealth = 480.0' in config_text and 'bossDamage = 9.0' in config_text,'Default Boss config values')
+check('phase2Guard = 220.0' in config_text,'P2 defense configuration packaged')
+check('phase3Guard = 260.0' in config_text,'P3 defense configuration packaged')
+check('phase3HealthFloor = 0.4' in config_text,'P3 entry health configuration packaged')
+for key in ['yang_jian_p1','yang_jian_p2','yang_jian_transition','yang_jian_p2_clear',
+            'yang_jian_p3','yang_jian_eye_open','yang_jian_judgement','yang_jian_defeated']:
+    check(f'boss.{NS}.{key}' in langs[0],f'Yang Jian stage label: {key}')
 sound_def=jsons[f'assets/{NS}/sounds.json']
 for phase in range(1,5):
     key=f'music.cogwork_dancer_phase{phase}'
@@ -67,6 +74,12 @@ for phase in range(1,5):
     check(sound['name']==f'{NS}:music/cogwork_dancer_phase{phase}' and sound.get('stream') is True,'Streamed phase music: '+key)
     ogg=RES/f'assets/{NS}/sounds/music/cogwork_dancer_phase{phase}.ogg'
     check(ogg.exists() and ogg.stat().st_size>1024 and ogg.read_bytes()[:4]==b'OggS','OGG phase music: '+key)
+for key,name in [('music.yang_jian_bgm_intro','yang_jian_bgm_intro'),('music.yang_jian_bgm_main','yang_jian_bgm_main')]:
+    check(key in sound_def and len(sound_def[key]['sounds'])==1,'Yang Jian music sound definition: '+key)
+    sound=sound_def[key]['sounds'][0]
+    check(sound['name']==f'{NS}:music/{name}' and sound.get('stream') is True,'Streamed Yang Jian music: '+key)
+    ogg=RES/f'assets/{NS}/sounds/music/{name}.ogg'
+    check(ogg.exists() and ogg.stat().st_size>1024 and ogg.read_bytes()[:4]==b'OggS','OGG Yang Jian music: '+key)
 for ref in jsons[f'assets/{NS}/models/block/dance_altar.json']['textures'].values():
  if ref.startswith(NS+':'):check((RES/f'assets/{NS}/textures/{ref.split(":",1)[1]}.png').exists(),'Altar texture exists')
 mesh=jsons[f'assets/{NS}/mesh/cogwork_dancer.json']
@@ -111,6 +124,16 @@ with zipfile.ZipFile(jars[0]) as jar:
         entry=f'net/xuwu/myriadcalamity/{name}.class'
         check(entry in names,f'Packaged class {name}')
         check(struct.unpack('>H',jar.read(entry)[6:8])[0]==65,f'Java 21 class {name}')
+    for name in ['entity/YangJian','entity/YangJianSkill','entity/YangJianTransition','entity/YangJianDefense','entity/YangJianDefenseEvents','entity/CelestialHound','entity/TriPointedBlade',
+                 'entity/DivineFlyingSword','entity/LightningTrail','entity/YangJianEffects',
+                 'entity/YangJianHazard','entity/YangJianHazardMath','entity/YangJianPhaseThree','entity/YangJianFootwork','client/YangJianHazardRenderer',
+                 'client/DivineFlyingSwordRenderer','client/LightningTrailRenderer','client/YangJianWeapons','client/YangJianCombatEffects','client/YangJianTransitionEffects',
+                 'effect/RoarMarkEffect','world/CloudArena','world/CloudArenaData','item/CloudTalismanItem',
+                 'client/YangJianModel','client/YangJianRenderer','client/YangJianTelegraph',
+                 'client/CelestialHoundRenderer','client/CelestialHoundModel','client/TriPointedBladeRenderer','client/CloudRealmEffects']:
+        entry=f'net/xuwu/myriadcalamity/{name}.class'
+        check(entry in names,f'Packaged Yang Jian class {name}')
+        check(struct.unpack('>H',jar.read(entry)[6:8])[0]==65,f'Java 21 Yang Jian class {name}')
     metadata=jar.read('META-INF/neoforge.mods.toml').decode('utf8')
     check('${' not in metadata,'Expanded metadata')
     check(re.search(r'\bversion\s*=\s*"'+re.escape(version)+r'"',metadata),'JAR metadata matches release version')

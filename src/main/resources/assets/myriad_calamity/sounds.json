@@ -30,5 +30,21 @@
         "stream": true
       }
     ]
+  },
+  "music.yang_jian_bgm_intro": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/yang_jian_bgm_intro",
+        "stream": true
+      }
+    ]
+  },
+  "music.yang_jian_bgm_main": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/yang_jian_bgm_main",
+        "stream": true
+      }
+    ]
   }
 }

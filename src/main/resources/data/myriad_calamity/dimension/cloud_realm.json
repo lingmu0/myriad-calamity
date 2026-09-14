@@ -1,0 +1,13 @@
+{
+  "type": "myriad_calamity:cloud_realm",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "myriad_calamity:cloud_sea",
+      "layers": [],
+      "lakes": false,
+      "features": false,
+      "structure_overrides": []
+    }
+  }
+}

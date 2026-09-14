@@ -75,7 +75,12 @@ en={
  'advancement.myriad_calamity.last_dance.description':'Defeat the surviving Cogwork Dancer and end the performance.'
 }
 for lang,values in [('zh_cn',zh),('en_us',en)]:write_json(f'assets/{NS}/lang/{lang}.json',values)
-write_json(f'assets/{NS}/sounds.json',{f'music.cogwork_dancer_phase{phase}':{'sounds':[{'name':f'{NS}:music/cogwork_dancer_phase{phase}','stream':True}]} for phase in range(1,5)})
+sounds={f'music.cogwork_dancer_phase{phase}':{'sounds':[{'name':f'{NS}:music/cogwork_dancer_phase{phase}','stream':True}]} for phase in range(1,5)}
+sounds.update({
+    'music.yang_jian_bgm_intro': {'sounds':[{'name':f'{NS}:music/yang_jian_bgm_intro','stream':True}]},
+    'music.yang_jian_bgm_main': {'sounds':[{'name':f'{NS}:music/yang_jian_bgm_main','stream':True}]},
+})
+write_json(f'assets/{NS}/sounds.json',sounds)
 write_json(f'data/{NS}/recipe/winding_key.json',{
  'type':'minecraft:crafting_shaped','category':'equipment','pattern':[' G ','GAG',' RC'],
  'key':{'G':{'item':'minecraft:gold_ingot'},'A':{'item':'minecraft:amethyst_shard'},'R':{'item':'minecraft:redstone'},'C':{'item':'minecraft:copper_ingot'}},

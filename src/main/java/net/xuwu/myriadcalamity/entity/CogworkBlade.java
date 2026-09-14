@@ -16,6 +16,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 
 /** A finite, collision-tested blade of light emitted during the shared dance. */
@@ -68,11 +69,13 @@ public final class CogworkBlade extends Projectile {
             // Vanilla swept ray checks blocks first, truncating the entity ray at the wall.
             HitResult result=ProjectileUtil.getHitResultOnMoveVector(this,this::canHitEntity);
             if(result.getType()!=HitResult.Type.MISS) {
-                if(result instanceof EntityHitResult hit)hit.getEntity().hurt(damageSources().mobProjectile(this,owner),damage);
-                discard();return;
+                if(!EventHooks.onProjectileImpact(this,result)) {
+                    if(result instanceof EntityHitResult hit)hit.getEntity().hurt(damageSources().mobProjectile(this,owner),damage);
+                    discard();return;
+                }
             }
         }
-        setPos(position().add(movement));updateRotation();
+        setPos(position().add(getDeltaMovement()));updateRotation();
     }
     @Override protected boolean canHitEntity(Entity entity) {
         return entity instanceof Player player && player.isAlive() && !player.isCreative() && !player.isSpectator() && super.canHitEntity(entity);
