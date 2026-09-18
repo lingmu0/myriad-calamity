@@ -81,20 +81,20 @@ sounds.update({
     'music.yang_jian_bgm_main': {'sounds':[{'name':f'{NS}:music/yang_jian_bgm_main','stream':True}]},
 })
 write_json(f'assets/{NS}/sounds.json',sounds)
-write_json(f'data/{NS}/recipe/winding_key.json',{
+write_json(f'data/{NS}/recipes/winding_key.json',{
  'type':'minecraft:crafting_shaped','category':'equipment','pattern':[' G ','GAG',' RC'],
  'key':{'G':{'item':'minecraft:gold_ingot'},'A':{'item':'minecraft:amethyst_shard'},'R':{'item':'minecraft:redstone'},'C':{'item':'minecraft:copper_ingot'}},
- 'result':{'id':f'{NS}:winding_key','count':1}})
+ 'result':{'item':f'{NS}:winding_key','count':1}})
 solo_condition={'condition':'minecraft:entity_properties','entity':'this','predicate':{'nbt':'{Solo:1b}'}}
-write_json(f'data/{NS}/loot_table/entities/cogwork_dancer.json',{
+write_json(f'data/{NS}/loot_tables/entities/cogwork_dancer.json',{
  'type':'minecraft:entity','pools':[
   {'rolls':1,'conditions':[solo_condition,{'condition':'minecraft:killed_by_player'}],
    'entries':[{'type':'minecraft:item','name':f'{NS}:cogwork_heart','functions':[{'function':'minecraft:set_count','count':2}]}]},
   {'rolls':1,'conditions':[solo_condition],
    'entries':[{'type':'minecraft:item','name':'minecraft:copper_ingot','functions':[{'function':'minecraft:set_count','count':{'type':'minecraft:uniform','min':6,'max':12}}]}]}
  ]})
-write_json(f'data/{NS}/advancement/last_dance.json',{
- 'display':{'icon':{'id':f'{NS}:cogwork_heart'},'title':{'translate':'advancement.myriad_calamity.last_dance.title'},
+write_json(f'data/{NS}/advancements/last_dance.json',{
+ 'display':{'icon':{'item':f'{NS}:cogwork_heart'},'title':{'translate':'advancement.myriad_calamity.last_dance.title'},
  'description':{'translate':'advancement.myriad_calamity.last_dance.description'},'background':'minecraft:textures/block/deepslate_tiles.png','frame':'challenge','show_toast':True,'announce_to_chat':True},
  'criteria':{'solo_defeated':{'trigger':'minecraft:player_killed_entity','conditions':{'entity':{'type':f'{NS}:cogwork_dancer','nbt':'{Solo:1b}'}}}},
  'rewards':{'experience':150}})

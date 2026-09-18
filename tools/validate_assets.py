@@ -38,14 +38,16 @@ for png in RES.rglob('*.png'):
     dimensions=read_png(png)
     expected = {'yang_jian.png': (2048,2048), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
     check(dimensions==expected.get(png.name, (256,256) if png.parent.name=='entity' else (32,32)),f'Texture dimensions: {png}')
-recipe=jsons[f'data/{NS}/recipe/winding_key.json']
+recipe=jsons[f'data/{NS}/recipes/winding_key.json']
 check(recipe['result']['item']==f'{NS}:winding_key','1.20.1 recipe item id')
 check(set(''.join(recipe['pattern']))-{' '}==recipe['key'].keys(),'Recipe key coverage')
-loot=jsons[f'data/{NS}/loot_table/entities/cogwork_dancer.json']
+loot=jsons[f'data/{NS}/loot_tables/entities/cogwork_dancer.json']
 check(all(any(c.get('predicate',{}).get('nbt')=='{Solo:1b}' for c in pool['conditions']) for pool in loot['pools']),'Only the final survivor drops loot')
-adv=jsons[f'data/{NS}/advancement/last_dance.json']
+adv=jsons[f'data/{NS}/advancements/last_dance.json']
 check(adv['criteria']['solo_defeated']['conditions']['entity']['nbt']=='{Solo:1b}','Advancement requires solo survivor')
-for old in ['recipes','loot_tables','advancements']:check(not (RES/f'data/{NS}/{old}').exists(),f'No legacy folder {old}')
+# 1.20.1 reads the plural folder names; the singular ones were introduced in 1.21 and load nothing.
+for folder in ['recipes','loot_tables','advancements']:check((RES/f'data/{NS}/{folder}').is_dir(),f'1.20.1 datapack folder {folder}')
+for folder in ['recipe','loot_table','advancement']:check(not (RES/f'data/{NS}/{folder}').exists(),f'No 1.21 folder {folder}')
 for p in (ROOT/'src/main/java').rglob('*.java'):
     s=p.read_text('utf8')
     if '/client/' not in p.as_posix():check('net.minecraft.client' not in s,f'No client import in server class {p.name}')

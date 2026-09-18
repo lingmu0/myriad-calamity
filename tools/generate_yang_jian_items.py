@@ -91,6 +91,6 @@ for name in ['cloud_talisman', 'divine_sigil']:
 recipe = {'type': 'minecraft:crafting_shaped', 'category': 'misc', 'pattern': [' F ', 'GPG', ' E '],
           'key': {'F': {'item': 'minecraft:feather'}, 'G': {'item': 'minecraft:gold_ingot'},
                   'P': {'item': 'minecraft:paper'}, 'E': {'item': 'minecraft:ender_pearl'}},
-          'result': {'id': 'myriad_calamity:cloud_talisman', 'count': 1}}
-(ROOT / 'src/main/resources/data/myriad_calamity/recipe/cloud_talisman.json').write_text(json.dumps(recipe, indent=2) + '\n', encoding='utf8')
+          'result': {'item': 'myriad_calamity:cloud_talisman', 'count': 1}}
+(ROOT / 'src/main/resources/data/myriad_calamity/recipes/cloud_talisman.json').write_text(json.dumps(recipe, indent=2) + '\n', encoding='utf8')
 print('Generated Yang Jian item icons, mark icon, item models and talisman recipe.')
