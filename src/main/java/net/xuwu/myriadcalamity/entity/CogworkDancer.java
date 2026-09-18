@@ -111,6 +111,16 @@ public final class CogworkDancer extends Monster {
     public record AttackLane(Vec3 start,Vec3 end) {}
     public Vec3 attackStart() { return readPlanPoint(entityData.get(ATTACK_PLAN),"s"); }
     public Vec3 attackEnd() { return readPlanPoint(entityData.get(ATTACK_PLAN),"e"); }
+    /**
+     * Where an attack's body stands while it is still winding up: on the start of its lane for a
+     * dash or the barrage, and above the landing point for a slam. Server staging and the client's
+     * windup presentation both read this one rule so the body always matches the ground telegraph.
+     */
+    public static Vec3 stagePoint(int action,Vec3 attackStart,Vec3 attackEnd) {
+        return action==SLAM?attackEnd.add(0,4.5,0):attackStart;
+    }
+    /** The synced windup stage point of the current action, valid once a plan exists. */
+    public Vec3 stagePoint() { return stagePoint(action(),attackStart(),attackEnd()); }
     /** Each dancer publishes four lanes together; the pair therefore announces all eight at once. */
     public List<AttackLane> telegraphLanes() {
         ListTag tags=entityData.get(ATTACK_PLAN).getList("lanes",Tag.TAG_COMPOUND);
@@ -425,8 +435,10 @@ public final class CogworkDancer extends Monster {
         syncAttackPlan(action);
         // Stage the body instantly instead of letting the windup slowly drag it across the arena.
         // Delayed phase-three partners are staged as soon as their warning is planned.
-        if(action==DASH || action==BARRAGE) teleportTo(attackStart.x,attackStart.y,attackStart.z);
-        else if(action==SLAM) teleportTo(attackEnd.x,attackEnd.y+4.5,attackEnd.z);
+        if(action==DASH || action==BARRAGE || action==SLAM) {
+            Vec3 stage=stagePoint(action,attackStart,attackEnd);
+            teleportTo(stage.x,stage.y,stage.z);
+        }
     }
     private void activateQueued() {
         CompoundTag plan=entityData.get(NEXT_PLAN);
@@ -506,6 +518,10 @@ public final class CogworkDancer extends Monster {
         if(age<windup) {
             // begin() has already teleported the dancer to its staging point; the windup
             // holds that position instead of visibly drifting across the theatre.
+            // The hold is re-asserted every tick: entity pushes, collision resolution and the
+            // partner's own crossing dash must never drag the body off the painted warning.
+            Vec3 stage=stagePoint(action(),attackStart,attackEnd);
+            if(position().distanceToSqr(stage)>1.0E-4) teleportTo(stage.x,stage.y,stage.z);
             setDeltaMovement(Vec3.ZERO);
             if(action()==DASH || action()==BARRAGE) face(attackEnd,30);
             // Ground ribbons and circles are drawn client-side from the synchronized locked plan.

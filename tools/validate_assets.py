@@ -111,6 +111,12 @@ for name,clip in clips.items():
    check(max(keys[i+1][0]-keys[i][0] for i in range(len(keys)-1))<1/60+1e-6,'60 Hz spline sampling')
    check(all(keys[i][0]<=keys[i+1][0] for i in range(len(keys)-1)),'Ordered keyframe times')
    check(all(0<=key[0]<=clip['length'] and len(key)==4 and all(math.isfinite(v) for v in key) for key in keys),'Valid keyframes')
+dancer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/entity/CogworkDancer.java').read_text('utf8')
+check(dancer_source.count('attackEnd.add(0,4.5,0)')==1,'The slam staging height has a single definition')
+check(dancer_source.count('stagePoint(')>=4,'Server staging, the windup hold and the getter share one staging rule')
+renderer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/client/CogworkDancerRenderer.java').read_text('utf8')
+check('dancer.stagePoint()' in renderer_source and 'dancer.attackWindup()' in renderer_source,
+    'The dancer renderer pins the body to the windup stage point')
 source=ROOT/'modeling/cogwork_dancer.bbmodel'
 manifest=json.loads((ROOT/'modeling/mcp-export-manifest.json').read_text('utf8'))
 check(manifest['source_sha256']==hashlib.sha256(source.read_bytes()).hexdigest(),'Assets match the actual Blockbench export')
