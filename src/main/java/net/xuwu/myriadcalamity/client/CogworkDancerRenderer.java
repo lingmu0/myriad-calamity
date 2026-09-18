@@ -11,6 +11,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.entity.CogworkDancer;
+import net.xuwu.myriadcalamity.entity.CombatMath;
 
 public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,CogworkDancerModel> {
     private static final ResourceLocation GOLD=MyriadCalamity.id("textures/entity/cogwork_dancer.png");
@@ -46,8 +47,8 @@ public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,Cogwo
         int action=dancer.action();
         Vec3 tracked=dancer.getPosition(partial);
         float age=dancer.scheduledActionAge(partial);
-        boolean staged=action==CogworkDancer.DASH || action==CogworkDancer.BARRAGE || action==CogworkDancer.SLAM;
-        if(!staged || age<0 || age>=dancer.attackWindup()) {
+        boolean staged=stagedWindow(action,age,dancer.attackWindup());
+        if(!staged) {
             glides.remove(dancer);
             shownPositions.put(dancer,tracked);
             return Vec3.ZERO;
@@ -66,6 +67,20 @@ public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,Cogwo
         shownPositions.put(dancer,shown);
         Vec3 offset=shown.subtract(tracked);
         return offset.lengthSqr()>1.0E-6?offset:Vec3.ZERO;
+    }
+
+    /**
+     * True while the body is meant to stand on the staged point: the windup of a dash, slam or
+     * barrage, plus each barrage pass warning, which stages the next lane the same way.
+     */
+    private static boolean stagedWindow(int action,float age,int windup) {
+        if(action!=CogworkDancer.DASH && action!=CogworkDancer.BARRAGE && action!=CogworkDancer.SLAM) return false;
+        if(age<0) return false;
+        if(age<windup) return true;
+        if(action!=CogworkDancer.BARRAGE) return false;
+        int active=(int)(age-windup);
+        if(active>=CombatMath.BARRAGE_PASSES*CombatMath.BARRAGE_PASS_TICKS) return false;
+        return active%CombatMath.BARRAGE_PASS_TICKS<CombatMath.BARRAGE_WARNING_TICKS;
     }
 
     /** One windup slide: from the last drawn position onto the staged point. */

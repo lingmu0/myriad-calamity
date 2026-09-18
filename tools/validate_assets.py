@@ -114,6 +114,9 @@ for name,clip in clips.items():
 dancer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/entity/CogworkDancer.java').read_text('utf8')
 check(dancer_source.count('attackEnd.add(0,4.5,0)')==1,'The slam staging height has a single definition')
 check(dancer_source.count('stagePoint(')>=4,'Server staging, the windup hold and the getter share one staging rule')
+check('steer(start,4.2,false)' not in dancer_source,'Every barrage pass is staged instead of flying to its lane')
+check('if(position().distanceToSqr(start)>1.0E-4) teleportTo(start.x,start.y,start.z);' in dancer_source,
+    'Every barrage pass holds its staged lane through the warning')
 renderer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/client/CogworkDancerRenderer.java').read_text('utf8')
 check('dancer.stagePoint()' in renderer_source and 'dancer.attackWindup()' in renderer_source,
     'The dancer renderer pins the body to the windup stage point')
