@@ -582,8 +582,17 @@ public final class CogworkDancer extends Monster {
             CombatMath.Lane lane=barrageLanes[pass];
             Vec3 start=worldPoint(lane.start()),end=worldPoint(lane.end());
             if(local<CombatMath.BARRAGE_WARNING_TICKS) {
-                steer(start,4.2,false);face(end,50);
-                if(local==0)playSound(SoundEvents.NOTE_BLOCK_HAT.value(),1,1.5F);
+                // Every pass is staged on its own lane, exactly like a dash windup, so the warning
+                // always shows where the charge comes from. Flying in during the warning used to
+                // leave the body short of the lane start and could cancel the pass entirely.
+                if(local==0) {
+                    attackStart=start; attackEnd=end;
+                    syncAttackPlan(BARRAGE);
+                    playSound(SoundEvents.NOTE_BLOCK_HAT.value(),1,1.5F);
+                }
+                if(position().distanceToSqr(start)>1.0E-4) teleportTo(start.x,start.y,start.z);
+                setDeltaMovement(Vec3.ZERO);
+                face(end,50);
             } else if(CombatMath.barrageCharging(active)) {
                 if(local==CombatMath.BARRAGE_WARNING_TICKS) {
                     barrageReady=position().distanceToSqr(start)<=0.04;
