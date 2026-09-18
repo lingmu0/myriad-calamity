@@ -11,7 +11,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.entity.CogworkDancer;
-import net.xuwu.myriadcalamity.entity.CombatMath;
 
 public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,CogworkDancerModel> {
     private static final ResourceLocation GOLD=MyriadCalamity.id("textures/entity/cogwork_dancer.png");
@@ -71,16 +70,12 @@ public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,Cogwo
 
     /**
      * True while the body is meant to stand on the staged point: the windup of a dash, slam or
-     * barrage, plus each barrage pass warning, which stages the next lane the same way.
+     * barrage. The barrage's own passes keep the body moving, so they are deliberately excluded -
+     * the four charges have to read as one continuous flurry.
      */
     private static boolean stagedWindow(int action,float age,int windup) {
         if(action!=CogworkDancer.DASH && action!=CogworkDancer.BARRAGE && action!=CogworkDancer.SLAM) return false;
-        if(age<0) return false;
-        if(age<windup) return true;
-        if(action!=CogworkDancer.BARRAGE) return false;
-        int active=(int)(age-windup);
-        if(active>=CombatMath.BARRAGE_PASSES*CombatMath.BARRAGE_PASS_TICKS) return false;
-        return active%CombatMath.BARRAGE_PASS_TICKS<CombatMath.BARRAGE_WARNING_TICKS;
+        return age>=0 && age<windup;
     }
 
     /** One windup slide: from the last drawn position onto the staged point. */

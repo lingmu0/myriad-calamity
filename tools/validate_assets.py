@@ -114,10 +114,11 @@ for name,clip in clips.items():
 dancer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/entity/CogworkDancer.java').read_text('utf8')
 check(dancer_source.count('attackEnd.add(0,4.5,0)')==1,'The slam staging height has a single definition')
 check(dancer_source.count('stagePoint(')>=4,'Server staging, the windup hold and the getter share one staging rule')
-check('steer(start,4.2,false)' not in dancer_source,'Every barrage pass is staged instead of flying to its lane')
-check('if(position().distanceToSqr(start)>1.0E-4) teleportTo(start.x,start.y,start.z);' in dancer_source,
-    'Every barrage pass holds its staged lane through the warning')
+check('steer(start,4.2,false)' in dancer_source,'Every barrage pass sweeps onto its lane instead of stopping')
+check('if(position().distanceToSqr(start)>0.04) teleportTo(start.x,start.y,start.z);' in dancer_source,
+    'Every barrage pass still lands on its lane start before charging')
 renderer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/client/CogworkDancerRenderer.java').read_text('utf8')
+check('CombatMath.BARRAGE_PASS_TICKS' not in renderer_source,'The windup slide never freezes the barrage passes')
 check('dancer.stagePoint()' in renderer_source and 'dancer.attackWindup()' in renderer_source,
     'The dancer renderer pins the body to the windup stage point')
 source=ROOT/'modeling/cogwork_dancer.bbmodel'

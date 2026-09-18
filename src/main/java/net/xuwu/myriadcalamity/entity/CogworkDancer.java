@@ -598,21 +598,21 @@ public final class CogworkDancer extends Monster {
             CombatMath.Lane lane=barrageLanes[pass];
             Vec3 start=worldPoint(lane.start()),end=worldPoint(lane.end());
             if(local<CombatMath.BARRAGE_WARNING_TICKS) {
-                // Every pass is staged on its own lane, exactly like a dash windup, so the warning
-                // always shows where the charge comes from. Flying in during the warning used to
-                // leave the body short of the lane start and could cancel the pass entirely.
+                // The body sweeps onto the lane it is about to run, so the four charges read as one
+                // continuous flurry instead of four separate stops. The plan is republished here so
+                // the warning and the body agree, and the last warning tick snaps onto the lane
+                // start if the sweep fell short: a pass is never silently cancelled.
                 if(local==0) {
                     attackStart=start; attackEnd=end;
                     syncAttackPlan(BARRAGE);
                     playSound(SoundEvents.NOTE_BLOCK_HAT.value(),1,1.5F);
                 }
-                if(position().distanceToSqr(start)>1.0E-4) teleportTo(start.x,start.y,start.z);
-                setDeltaMovement(Vec3.ZERO);
-                face(end,50);
+                steer(start,4.2,false);face(end,50);
             } else if(CombatMath.barrageCharging(active)) {
                 if(local==CombatMath.BARRAGE_WARNING_TICKS) {
-                    barrageReady=position().distanceToSqr(start)<=0.04;
-                    if(barrageReady) { playSound(SoundEvents.PLAYER_ATTACK_SWEEP,1.3F,1.6F); }
+                    if(position().distanceToSqr(start)>0.04) teleportTo(start.x,start.y,start.z);
+                    barrageReady=true;
+                    playSound(SoundEvents.PLAYER_ATTACK_SWEEP,1.3F,1.6F);
                 }
                 if(barrageReady) {
                     Vec3 before=position();steer(end,4.2);
