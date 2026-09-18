@@ -10,7 +10,6 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.world.CloudArena;
@@ -24,11 +23,6 @@ public final class CloudRealmEffects extends DimensionSpecialEffects {
         return new Vec3(.78, .85, .91);
     }
     @Override public boolean isFoggyAt(int x, int z) { return false; }
-
-    @SubscribeEvent
-    public static void register(RegisterDimensionSpecialEffectsEvent event) {
-        event.register(MyriadCalamity.id("cloud_realm"), new CloudRealmEffects());
-    }
 
     @SubscribeEvent
     public static void fogColor(ViewportEvent.ComputeFogColor event) {

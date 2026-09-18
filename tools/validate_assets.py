@@ -115,6 +115,34 @@ source=ROOT/'modeling/cogwork_dancer.bbmodel'
 manifest=json.loads((ROOT/'modeling/mcp-export-manifest.json').read_text('utf8'))
 check(manifest['source_sha256']==hashlib.sha256(source.read_bytes()).hexdigest(),'Assets match the actual Blockbench export')
 check(manifest['cubes']>=200 and manifest['bones']>=35 and manifest['rendered_faces']==face_count,'Cuboid detail and geometry count retained')
+mod_bus_events={'EntityRenderersEvent','RegisterDimensionSpecialEffectsEvent','FMLClientSetupEvent','FMLCommonSetupEvent',
+                'RegisterKeyMappingsEvent','RegisterParticleProvidersEvent','ModelEvent','RegisterClientReloadListenersEvent',
+                'RegisterClientExtensionsEvent','RegisterNamedRenderTypesEvent','RegisterTextureAtlasSpriteLoadersEvent'}
+forge_bus_events={'TickEvent','RenderLevelStageEvent','ViewportEvent','PlayerInteractEvent','BlockEvent','LivingDeathEvent',
+                  'ProjectileImpactEvent','EntityJoinLevelEvent','EntityTravelToDimensionEvent','ExplosionEvent','PlayerEvent',
+                  'ServerTickEvent','ClientTickEvent','ServerStartingEvent','ServerStoppedEvent','RecipesUpdatedEvent'}
+subscriber=re.compile(r'@Mod\.EventBusSubscriber\((?P<body>[^)]*)\)')
+handler=re.compile(r'@SubscribeEvent\s+public\s+static\s+\w+\s+\w+\(\s*(?:final\s+)?([A-Za-z0-9_.]+)\s+\w+\s*\)')
+for path in (ROOT/'src/main/java').rglob('*.java'):
+    source=path.read_text('utf8')
+    annotation=subscriber.search(source)
+    if not annotation:continue
+    on_mod_bus='Bus.MOD' in annotation.group('body')
+    for event in handler.findall(source):
+        root=event.split('.')[0]
+        if root in mod_bus_events:
+            check(on_mod_bus,f'{path.name} registers the mod-bus event {event} on the Forge bus')
+        elif root in forge_bus_events:
+            check(not on_mod_bus,f'{path.name} handles the Forge event {event} on the mod bus')
+    if on_mod_bus:check('value=Dist.CLIENT' in annotation.group('body') or 'value = Dist.CLIENT' in annotation.group('body'),
+        f'{path.name} restricts its mod-bus client registrations to the client distribution')
+registered=set(re.findall(r'ENTITIES\.register\("([a-z_]+)"',(ROOT/'src/main/java/net/xuwu/myriadcalamity/MyriadCalamity.java').read_text('utf8')))
+rendered=set(re.findall(r'registerEntityRenderer\(MyriadCalamity\.([A-Z_]+)\.get\(\)',
+    (ROOT/'src/main/java/net/xuwu/myriadcalamity/client/ClientModBus.java').read_text('utf8')))
+fields=dict(re.findall(r'RegistryObject<EntityType<[^>]+>>\s*([A-Z_]+)\s*=\s*ENTITIES\.register\("([a-z_]+)"',
+    (ROOT/'src/main/java/net/xuwu/myriadcalamity/MyriadCalamity.java').read_text('utf8')))
+check(registered==set(fields.values()),'Every entity type is declared once')
+check({fields[name] for name in rendered}==registered,f'Every entity type has a client renderer: {sorted(registered-{fields[n] for n in rendered})}')
 version=re.search(r'^mod_version=(.+)$',(ROOT/'gradle.properties').read_text('utf8'),re.M).group(1).strip()
 jars=list((ROOT/'build/libs').glob(f'{NS}-{version}.jar'))
 check(len(jars)==1,'Exactly one distributable JAR')
