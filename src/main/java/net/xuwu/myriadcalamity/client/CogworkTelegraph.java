@@ -20,7 +20,7 @@ import org.joml.Matrix4f;
 /** Frozen, server-planned ground geometry, using the same filled warning style as Time's Keeper. */
 @EventBusSubscriber(modid=MyriadCalamity.ID, value=Dist.CLIENT)
 public final class CogworkTelegraph {
-    private static final double GROUND_OFFSET=0.035, EDGE_WIDTH=0.075;
+    private static final double GROUND_OFFSET=0.035;
 
     @SubscribeEvent
     public static void renderLevel(RenderLevelStageEvent event) {
@@ -52,8 +52,8 @@ public final class CogworkTelegraph {
         Matrix4f matrix=pose.last().pose();
         int steps=128;
         double radius=CombatMath.FIGHT_BOUNDARY_RADIUS, inner=radius-0.11, outer=radius+0.11;
-        int ground=color(.78F+.12F*(float)Math.sin((dancer.tickCount+partial)*.16F),255,104,35);
-        int wall=color(.10F+.04F*(float)Math.sin((dancer.tickCount+partial)*.12F),255,80,28);
+        int ground=color(.28F+.06F*(float)Math.sin((dancer.tickCount+partial)*.16F),255,142,92);
+        int wall=color(.05F+.02F*(float)Math.sin((dancer.tickCount+partial)*.12F),255,108,58);
         for(int i=0;i<steps;i++) {
             double a=i*Math.PI*2/steps,b=(i+1)*Math.PI*2/steps;
             vertex(vertices,matrix,Math.cos(a)*inner,GROUND_OFFSET,Math.sin(a)*inner,ground);
@@ -159,19 +159,12 @@ public final class CogworkTelegraph {
     }
 
     private static void polygon(VertexConsumer v,Matrix4f m,double[] x,double[] z,double y,float charge,float age) {
-        int fill=color(.13F+charge*.13F,255,55,24);
-        int border=color(.84F+.12F*(float)Math.sin(age*.27),255,128+(int)(charge*80),47);
+        // A soft ground wash only. The hard edge stroke is gone and the fill is much fainter, so
+        // warnings read as light on the floor instead of as drawn outlines.
+        int fill=color(.06F+charge*.06F,255,112,72);
         for(int i=1;i<x.length-1;i++) {
             vertex(v,m,x[0],y,z[0],fill);vertex(v,m,x[i],y,z[i],fill);
             vertex(v,m,x[i+1],y,z[i+1],fill);vertex(v,m,x[i+1],y,z[i+1],fill);
-        }
-        for(int i=0;i<x.length;i++) {
-            int next=(i+1)%x.length;
-            double dx=x[next]-x[i],dz=z[next]-z[i],length=Math.hypot(dx,dz);
-            if(length<1E-6)continue;
-            double nx=-dz/length*EDGE_WIDTH,nz=dx/length*EDGE_WIDTH;
-            vertex(v,m,x[i]+nx,y+.01,z[i]+nz,border);vertex(v,m,x[next]+nx,y+.01,z[next]+nz,border);
-            vertex(v,m,x[next]-nx,y+.01,z[next]-nz,border);vertex(v,m,x[i]-nx,y+.01,z[i]-nz,border);
         }
     }
 

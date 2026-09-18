@@ -4,15 +4,30 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/** Geometry and damage budgets shared by the P2 effects; independent of Minecraft bootstrap. */
+/** Geometry and damage budgets shared by the P2/P3 effects; independent of Minecraft bootstrap. */
 public final class YangJianEffects {
     public static final int MAX_SWORDS=5,ORBIT_TICKS=24,AIM_TICKS=12;
     public static final int TRACKING_TICKS=8,FLIGHT_TICKS=40,TRAIL_HIT_INTERVAL=12;
     public static final double SWORD_SPEED=1.7,MAX_TURN_RADIANS=Math.toRadians(2.25),TRAIL_RADIUS=1.2;
+    public static final int MYRIAD_START_TICK=18,MYRIAD_END_TICK=106,MYRIAD_WAVE_INTERVAL=4;
+    public static final int MYRIAD_WAVES=(MYRIAD_END_TICK-MYRIAD_START_TICK)/MYRIAD_WAVE_INTERVAL+1;
+    public static final int MYRIAD_SWORDS_PER_WAVE=3,MYRIAD_ORBIT_TICKS=12,MAX_MYRIAD_ACTIVE=48;
 
     public static int swordCount(int requested) { return Math.clamp(requested,0,MAX_SWORDS); }
-    /** Every queued sword uses the same local sequence: orbit, warn, release. */
+    /** Every P2 sword keeps its original orbit and aim timing, without a targeting ray. */
     public static int releaseTick() { return ORBIT_TICKS+AIM_TICKS; }
+    public static int myriadSwordCount(int wave,int active) {
+        if(wave<0 || wave>=MYRIAD_WAVES)return 0;
+        return Math.min(MYRIAD_SWORDS_PER_WAVE,Math.max(0,MAX_MYRIAD_ACTIVE-Math.max(0,active)));
+    }
+    public static int myriadReleaseTick(int index) { return MYRIAD_ORBIT_TICKS+Math.clamp(index,0,MYRIAD_SWORDS_PER_WAVE-1); }
+    /** Stacked revolving rings continually change their starting angle as new swords appear. */
+    public static Direction myriadOrbit(double age,int wave,int index) {
+        int slot=Math.clamp(index,0,MYRIAD_SWORDS_PER_WAVE-1);
+        double angle=wave*2.3999632297+slot*Math.PI*2/MYRIAD_SWORDS_PER_WAVE+Math.max(0,age)*.29;
+        double radius=2.45+slot*.35;
+        return new Direction(Math.cos(angle)*radius,.15+slot*.55+Math.sin(angle)*.22,Math.sin(angle)*radius);
+    }
 
     public record Direction(double x,double y,double z) {
         public double dot(Direction other) { return x*other.x+y*other.y+z*other.z; }

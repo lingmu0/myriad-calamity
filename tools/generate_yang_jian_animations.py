@@ -135,6 +135,8 @@ def combos(name, windups, gap, recovery, kinds):
         for p in (ready,loaded,hit,follow):
             p['root']=[0,turns,0]
         if kind == 'spin':
+            # One clockwise turn. The model is rendered mirrored, so the clockwise look is
+            # authored here as increasing yaw; the world-space sweeps reach it the other way.
             loaded['root'][1] = turns+40
             hit['root'][1] = turns+275
             follow['root'][1] = turns+360

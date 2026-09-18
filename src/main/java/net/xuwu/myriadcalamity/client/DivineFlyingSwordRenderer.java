@@ -1,7 +1,6 @@
 package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -14,7 +13,7 @@ import net.xuwu.myriadcalamity.entity.DivineFlyingSword;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-/** A real jian blade aligned with its fixed aim/flight direction; orbiting P2 swords also show a targeting ray. */
+/** Visible revolving jian blades align with their flight direction; neither volley draws targeting rays. */
 public final class DivineFlyingSwordRenderer extends EntityRenderer<DivineFlyingSword> {
     private final YangJianWeapons weapons;
     public DivineFlyingSwordRenderer(EntityRendererProvider.Context context) {
@@ -22,20 +21,6 @@ public final class DivineFlyingSwordRenderer extends EntityRenderer<DivineFlying
     }
     @Override public void render(DivineFlyingSword sword,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
         if(!sword.hasPlan())return;
-        if(sword.aiming(partial)) {
-            Vec3 delta=sword.aimPoint().subtract(sword.position());
-            VertexConsumer warning=buffers.getBuffer(RenderType.debugQuads());
-            LightningTrailRenderer.ribbon(warning,pose,Vec3.ZERO,delta,.033,0xCEF1CB69);
-            // A second vertical ribbon keeps the thin ray readable from both overhead and ground views.
-            Vec3 normal=new Vec3(0,.033,0);
-            LightningTrailRenderer.quad(warning,pose,normal,delta.add(normal),delta.subtract(normal),normal.scale(-1),0xB8FFFFCC);
-            Vec3 spot=delta.add(0,-.84,0);
-            for(int i=0;i<32;i++) {
-                double a=i*Math.PI/16,b=(i+1)*Math.PI/16;
-                LightningTrailRenderer.ribbon(warning,pose,spot.add(Math.cos(a)*.6,0,Math.sin(a)*.6),
-                    spot.add(Math.cos(b)*.6,0,Math.sin(b)*.6),.035,0xCFF9D480);
-            }
-        }
         pose.pushPose();
         Vec3 heading=sword.facing(partial);
         pose.mulPose(new Quaternionf().rotationTo(new Vector3f(0,-1,0),new Vector3f((float)heading.x,(float)heading.y,(float)heading.z)));

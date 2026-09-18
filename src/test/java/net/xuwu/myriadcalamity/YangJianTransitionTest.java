@@ -36,12 +36,20 @@ public final class YangJianTransitionTest {
         check(YangJianTransition.SUMMON_END<=YangJianTransition.SWEEP_START,
             "The giant axe appears before its overhead sweep starts");
         check(YangJianTransition.SWEEP_END<YangJianTransition.IMPACT,
-            "The half-circle sweep finishes before the platform hit");
+            "The full-circle sweep finishes before the platform hit");
         check(near(YangJianTransition.height(YangJianTransition.IMPACT),0),
             "The boss arrives at the floor on the impact frame");
         check(YangJianTransition.weaponScale(YangJianTransition.SUMMON_END)>
             YangJianTransition.weaponScale(YangJianTransition.SUMMON_START),
             "Summoning visibly enlarges the thunder axe");
+        // A standing jump lasts twelve ticks, so each dodge must be able to start after the
+        // previous one has landed. Both crests need their own window.
+        check(YangJianTransition.EARLY_WAVE_START-(YangJianTransition.IMPACT-4)>=12,
+            "The slam jump has landed before the first shockwave crest starts");
+        check(YangJianTransition.WAVE_START-(YangJianTransition.EARLY_WAVE_START-4)>=12,
+            "The first crest's jump has landed before the second crest starts");
+        check(YangJianTransition.EARLY_WAVE_END<YangJianTransition.WAVE_START,
+            "The two crests are separate pulses with a quiet gap between them");
         check(YangJianTransition.WAVE_START>YangJianTransition.IMPACT+12,
             "A normal jump has time to land before the separate shockwave begins");
         check(YangJianTransition.WAVE_END<YangJianTransition.DURATION,
@@ -62,20 +70,30 @@ public final class YangJianTransitionTest {
     }
 
     private static void expandingWave() {
-        check(YangJianTransition.waveRadius(YangJianTransition.WAVE_START-1)<0,
-            "No damaging wave exists during the delayed warning");
+        check(near(YangJianTransition.waveRadius(YangJianTransition.EARLY_WAVE_START),0),
+            "The first shockwave also originates at the impact center");
+        check(near(YangJianTransition.waveRadius(YangJianTransition.EARLY_WAVE_END),YangJianTransition.RADIUS),
+            "The first shockwave also reaches the platform edge");
+        check(YangJianTransition.waveRadius(YangJianTransition.EARLY_WAVE_START-1)<0,
+            "The first crest does not damage before its activation");
+        check(near(YangJianTransition.waveRadius(YangJianTransition.EARLY_WAVE_END+1),0),
+            "The second crest restarts at the impact center as the first one reaches the wall");
         check(near(YangJianTransition.waveRadius(YangJianTransition.WAVE_START),0),
             "The shockwave originates at the impact center");
         check(near(YangJianTransition.waveRadius(YangJianTransition.WAVE_END),YangJianTransition.RADIUS),
             "The shockwave reaches the platform edge");
         check(YangJianTransition.waveRadius(YangJianTransition.WAVE_END+1)<0,
             "The expired wave leaves no persistent damaging trace");
-        double previous=-1;
-        for(int age=YangJianTransition.WAVE_START;age<=YangJianTransition.WAVE_END;age++) {
-            double radius=YangJianTransition.waveRadius(age);
-            check(radius>=previous && radius<=YangJianTransition.RADIUS,
-                "The ring moves outward without reversing or overshooting the arena");
-            previous=radius;
+        for(int[] window:new int[][]{
+                {YangJianTransition.EARLY_WAVE_START,YangJianTransition.EARLY_WAVE_END},
+                {YangJianTransition.WAVE_START,YangJianTransition.WAVE_END}}) {
+            double previous=-1;
+            for(int age=window[0];age<=window[1];age++) {
+                double radius=YangJianTransition.waveRadius(age);
+                check(radius>=previous && radius<=YangJianTransition.RADIUS,
+                    "Every ring moves outward without reversing or overshooting the arena");
+                previous=radius;
+            }
         }
         for(double distance:new double[]{0,1,6,11,17,21.7,22}) {
             boolean groundedHit=false;
@@ -89,6 +107,10 @@ public final class YangJianTransitionTest {
             check(!wave(age,23,23,0),"Wave thickness cannot leak damage outside the platform");
         check(wave(110,12,8,0),"Running inward through the moving wave between ticks still intersects it");
         check(wave(110,8,12,0),"Running outward through the moving wave between ticks still intersects it");
+        check(!wave(YangJianTransition.WAVE_START,12,12,0),
+            "A second crest starts at the center instead of sweeping inward from the finished one");
+        check(!wave(YangJianTransition.EARLY_WAVE_START,12,12,0),
+            "The first crest also starts at the center instead of covering the platform at once");
         check(!wave(110,2,3,0),"The already-cleared center is safe after the wave moves away");
         check(!wave(YangJianTransition.WAVE_START-1,12,8,0),"Swept collision cannot damage before wave activation");
         check(!wave(YangJianTransition.WAVE_END+1,21,22,0),"Swept collision cannot damage after wave expiration");
@@ -96,19 +118,19 @@ public final class YangJianTransitionTest {
 
     private static void ordinaryJumpDodgeWindows() {
         // Vanilla standing jump: vY=0.42, then gravity 0.08 and air drag 0.98 per tick.
-        // Two actual ground launches are required; the simulation rejects a midair second jump.
+        // Three actual ground launches are required; the simulation rejects a midair second jump.
         for(double distance:new double[]{0,11,22}) {
-            int firstContact=-1;
-            for(int age=YangJianTransition.WAVE_START;age<=YangJianTransition.WAVE_END;age++)
-                if(wave(age,distance,distance,0)) { firstContact=age;break; }
-            check(firstContact>=0,"The no-jump control is hit by the shockwave");
-            int firstJump=YangJianTransition.IMPACT-4;
-            int secondJump=firstContact-4;
+            int earlyContact=firstContact(distance,YangJianTransition.EARLY_WAVE_START,
+                YangJianTransition.EARLY_WAVE_END);
+            int lateContact=firstContact(distance,YangJianTransition.WAVE_START,YangJianTransition.WAVE_END);
+            check(earlyContact>=0,"The first crest reaches every platform position");
+            check(lateContact>=0,"The second crest reaches every platform position");
+            int[] jumps={YangJianTransition.IMPACT-4,earlyContact-4,lateContact-4};
             double y=0,velocity=0;
             int launches=0;
             boolean impactHit=false,waveHit=false;
             for(int age=0;age<=YangJianTransition.DURATION;age++) {
-                if(age==firstJump || age==secondJump) {
+                for(int jump:jumps) if(age==jump) {
                     check(near(y,0),"Each dodge starts after the previous ordinary jump has landed");
                     velocity=.42;launches++;
                 }
@@ -118,9 +140,14 @@ public final class YangJianTransitionTest {
                 if(age==YangJianTransition.IMPACT)impactHit|=impact(distance,y);
                 waveHit|=wave(age,distance,distance,y);
             }
-            check(launches==2 && !impactHit && !waveHit,
-                "Two normal jumps dodge the slam and subsequent wave at center, mid-platform, and edge");
+            check(launches==jumps.length && !impactHit && !waveHit,
+                "Three normal jumps dodge the slam and both shockwaves at center, mid-platform, and edge");
         }
+    }
+
+    private static int firstContact(double distance,int from,int to) {
+        for(int age=from;age<=to;age++) if(wave(age,distance,distance,0)) return age;
+        return -1;
     }
 
     private static boolean impact(double distance,double feetHeight) {

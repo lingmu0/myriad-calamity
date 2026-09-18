@@ -59,10 +59,12 @@ check((RES/f'assets/{NS}/blockstates/dance_altar.json').exists(),'Altar blocksta
 default_config=RES/'defaultconfigs/myriad_calamity-common.toml'
 check(default_config.exists(),'Default common config packaged')
 config_text=default_config.read_text('utf8')
-check('bossHealth = 480.0' in config_text and 'bossDamage = 9.0' in config_text,'Default Boss config values')
+check('[cogworkDancer]' in config_text and 'health = 480.0' in config_text and 'damage = 9.0' in config_text,
+    'Default Cogwork Dancer config values live in their own section')
 check('phase2Guard = 220.0' in config_text,'P2 defense configuration packaged')
 check('phase3Guard = 260.0' in config_text,'P3 defense configuration packaged')
 check('phase3HealthFloor = 0.4' in config_text,'P3 entry health configuration packaged')
+check('showAttackIndicators = false' in config_text,'Attack-range indicator switch packaged (default off)')
 for key in ['yang_jian_p1','yang_jian_p2','yang_jian_transition','yang_jian_p2_clear',
             'yang_jian_p3','yang_jian_eye_open','yang_jian_judgement','yang_jian_defeated']:
     check(f'boss.{NS}.{key}' in langs[0],f'Yang Jian stage label: {key}')

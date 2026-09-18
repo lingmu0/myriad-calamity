@@ -75,6 +75,17 @@ public final class YangJianCombatTest {
         check(p2Count==10,"All ten specified P2 skills are present, without any P3 entry");
         check(p3Count==10,"P3 includes eye opening and all nine final-phase attacks");
         check(YangJianSkill.THIRD_EYE_OPEN.weightForPhase(3,0,8,false,false,false,.4,0,0,false)==0,"Eye opening belongs exclusively to the guard transition");
+        for(double distance:new double[]{0,3,4,8,14,20,30}) {
+            check(YangJianSkill.TRACKING_BEAM.weightForPhase(3,0,distance,true,true,false,.4,0,0,true)==0
+                && YangJianSkill.TRACKING_BEAM.weightForPhase(3,0,distance,false,false,false,.9,0,0,false)==0,
+                "The thick sustained beam is removed from the P3 pool");
+        }
+        check(YangJianSkill.EYE_BEAM.weightForPhase(3,0,8,false,false,false,.4,0,0,false)>0,
+            "The thin fixed eye beam stays in the P3 pool");
+        check(YangJianSkill.EYE_BEAM.weightForPhase(3,0,2,false,false,false,.4,0,0,false)>0
+            && YangJianSkill.EYE_BEAM.weightForPhase(3,0,8,true,false,false,.4,0,0,false)
+                >YangJianSkill.EYE_BEAM.weightForPhase(3,0,8,false,false,false,.4,0,0,false),
+            "The thin beam still answers close range and item use");
         check(YangJianSkill.DIVINE_JUDGEMENT.cooldown()>=1200,"The ultimate has at least a one-minute cooldown");
         check(YangJianSkill.DIVINE_JUDGEMENT.stepWindup(0)>=40,"The ultimate has a two-second or longer introduction");
         check(YangJianSkill.PHASE_THREE_FINAL_RECOVERY>=24,"P3 keeps a short but readable punishment window after its faster skills");
@@ -98,11 +109,69 @@ public final class YangJianCombatTest {
         check(YangJianSkill.divineSweepTouches(129,130.8,129),"The P3 divine sweep reaches a standing player's hand-height body band");
         check(!YangJianSkill.divineSweepTouches(131.8,133.6,129),"A sufficiently high jump clears the raised P3 divine sweep");
         check(!YangJianSkill.divineSweepTouches(127,128.7,129),"The raised P3 divine sweep does not strike below the platform");
+        check(near(YangJianSkill.divineSweepWeaponLength(0),1),"The divine sweep starts from the spear's normal length");
+        check(near(YangJianSkill.divineSweepWeaponLength(YangJianSkill.DIVINE_SWEEP.stepWindup(0)),
+            YangJianSkill.DIVINE_SWEEP_WEAPON_LENGTH),"The spear is fully extended when the sweep begins");
+        check(near(YangJianSkill.divineSweepWeaponLength(30),YangJianSkill.DIVINE_SWEEP_WEAPON_LENGTH),
+            "The extended spear is held through every damaging frame");
+        check(near(YangJianSkill.divineSweepWeaponLength(48),1),"The spear returns to its normal length after the sweep");
+        check(near(YangJianSkill.divineSweepWeaponLength(-3),1)
+            && near(YangJianSkill.divineSweepWeaponLength(Float.NaN),1),
+            "Invalid ages keep the spear at its normal length");
+        double previousLength=1;
+        for(float age=0;age<=YangJianSkill.DIVINE_SWEEP.duration();age+=.5F) {
+            double length=YangJianSkill.divineSweepWeaponLength(age);
+            check(length>=1 && length<=YangJianSkill.DIVINE_SWEEP_WEAPON_LENGTH,
+                "The spear never shrinks below normal or overshoots the configured extension");
+            if(age<=YangJianSkill.DIVINE_SWEEP.stepWindup(0))
+                check(length>=previousLength,"The spear only grows while the sweep charges");
+            previousLength=length;
+        }
         check(YangJianSkill.GUARD_REGEN_DELAY==20*60*2,"An exhausted defense bar stays empty for two real minutes");
         check(YangJianSkill.phaseThresholdReached(480,640,1) && !YangJianSkill.phaseThresholdReached(481,640,1),"P2 begins at 75 percent health");
         check(YangJianSkill.phaseThresholdReached(320,640,2) && !YangJianSkill.phaseThresholdReached(321,640,2),"P3 begins at 50 percent health");
         check(!YangJianSkill.phaseThresholdReached(0,640,3) && !YangJianSkill.phaseThresholdReached(Float.NaN,640,1),"Only P1/P2 finite health thresholds can transition");
-        check(YangJianSkill.sweepRelative(Math.PI,0)>YangJianSkill.sweepRelative(Math.PI,1),"Rotating skills use the restored mirrored-model direction");
+        check(YangJianSkill.sweepRelative(Math.PI,0)<YangJianSkill.sweepRelative(Math.PI,1),"The chain sweeps the clockwise way its body turns");
+        check(YangJianSkill.sweepRelative(Math.PI,0)==-Math.PI*.5 && YangJianSkill.sweepRelative(Math.PI,1)==Math.PI*.5,
+            "The chain starts at one end of its arc and finishes at the other");
+        check(YangJianSkill.comboFollowup(3)==null && YangJianSkill.comboFollowup(YangJianSkill.COMBO_REACH)==null,
+            "A target still inside the melee reach lets the string keep swinging");
+        check(YangJianSkill.comboFollowup(8)==YangJianSkill.THRUST,"A target at medium range converts the follow-up into a closing thrust");
+        check(YangJianSkill.comboFollowup(30)==YangJianSkill.THROW,"A far target converts the follow-up into a thrown spear");
+        check(YangJianSkill.comboFollowup(Double.NaN)==null,"A malformed distance cannot invent a follow-up");
+        check(YangJianSkill.FOUR_COMBO.convertsWhenTargetEscapes() && YangJianSkill.SIX_COMBO.convertsWhenTargetEscapes(),
+            "The four and six hit strings convert when their target escapes");
+        check(!YangJianSkill.COMBO.convertsWhenTargetEscapes(),"The basic three hit combo always finishes its beats");
+        check(YangJianSkill.SWORD_RAIN.stepActive(0)==132 && YangJianSkill.SWORD_RAIN.duration()==172,
+            "The ground rain keeps falling for a longer window");
+        int activeEnd=YangJianSkill.SWORD_RAIN.activeEnd();
+        int drops=0;
+        for(int age=0;age<=YangJianSkill.SWORD_RAIN.duration();age++)
+            if(YangJianSkill.swordRainDropsAt(age,activeEnd))drops++;
+        check(drops==YangJianSkill.swordRainDrops(activeEnd) && drops==33,
+            "The rain releases one continuous drop every four ticks");
+        check(YangJianSkill.swordRainDropsAt(YangJianSkill.SWORD_RAIN_FIRST,activeEnd)
+            && !YangJianSkill.swordRainDropsAt(YangJianSkill.SWORD_RAIN_FIRST-1,activeEnd)
+            && !YangJianSkill.swordRainDropsAt(YangJianSkill.SWORD_RAIN_FIRST+1,activeEnd),
+            "The rain never leaves a four tick gap without a drop");
+        check(!YangJianSkill.swordRainDropsAt(activeEnd+1,activeEnd),"The rain stops when its window closes");
+        for(int start:new int[]{24,50,264}) {
+            int waves=0;
+            for(int age=0;age<start+60;age++)if(YangJianSkill.rainBurstAt(age,start))waves++;
+            check(waves==YangJianSkill.RAIN_BURST_WAVES,"Every dense rain burst lands three close waves");
+            check(YangJianSkill.rainBurstWave(start,start)==0
+                && YangJianSkill.rainBurstWave(start+YangJianSkill.RAIN_BURST_SPACING,start)==1
+                && YangJianSkill.rainBurstWave(start+2*YangJianSkill.RAIN_BURST_SPACING,start)==2,
+                "Each burst wave carries its own index");
+            check(YangJianSkill.rainBurstWarning(26,0)==26
+                && YangJianSkill.rainBurstWarning(26,2)==26-2*YangJianSkill.RAIN_BURST_WARNING_STEP,
+                "Later waves of a burst warn for less time");
+            check(!YangJianSkill.rainBurstAt(start-1,start) && !YangJianSkill.rainBurstAt(start+1,start)
+                && !YangJianSkill.rainBurstAt(start+YangJianSkill.RAIN_BURST_WAVES*YangJianSkill.RAIN_BURST_SPACING,start),
+                "A burst only fires on its own wave ticks");
+        }
+        check(YangJianSkill.RAIN_BURST_BLADES*YangJianSkill.RAIN_BURST_WAVES>6*2,
+            "Every burst lands far more blades than the single wave it replaced");
         check(YangJianSkill.canChain(1,2) && !YangJianSkill.canChain(2,2),"A two-move sequence stops after the second move");
         check(YangJianSkill.canChain(2,3) && !YangJianSkill.canChain(3,3),"A three-move sequence always stops after the third move");
         check(!YangJianSkill.canChain(3,100),"A malformed limit cannot create an endless combo");

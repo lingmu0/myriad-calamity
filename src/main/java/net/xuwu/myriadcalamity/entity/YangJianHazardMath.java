@@ -3,8 +3,31 @@ package net.xuwu.myriadcalamity.entity;
 /** Shared limits and geometry for the actual P3 hazard simulation. */
 public final class YangJianHazardMath {
     public static final int MAX_HAZARDS=48, DAMAGE_INTERVAL=12;
+    /** The red-thunder pillar holds this full height while it lands and while it persists. */
+    public static final double RED_THUNDER_HEIGHT=14;
     /** Normal beam sweep turn; clone passes use the same arc in a shorter window. */
     public static final double TRACK_TURN=Math.toRadians(.7), SWEEP_TURN=Math.toRadians(2), FAST_SWEEP_TURN=Math.toRadians(4.0625);
+    public static final int COMBO_SWEEP_TICKS=16;
+    /**
+     * Sign of the laser rake's angular advance. A beam is drawn in plain world space, where a
+     * positive atan2(z,x) rotation is the clockwise turn every rotating attack shares. The
+     * mirrored model reaches that same clockwise look with increasing authored yaw instead, which
+     * is why the animated spins below are authored upwards. Flip this one value to reverse every
+     * laser rake.
+     */
+    public static final double SWEEP_DIRECTION=1;
+    /** Preserve the former 64 degree combo arc while completing it twice as fast. */
+    public static double sweepTurn(int mode) { return mode==3?FAST_SWEEP_TURN:mode==4?SWEEP_TURN*2:SWEEP_TURN; }
+    public static boolean sweeping(int mode) { return mode==1 || mode==3 || mode==4; }
+    /**
+     * Fixed shots keep re-aiming while their eye is charging and only lock at release, so a
+     * player who keeps moving is still tracked during the warning. Sweeps and the tracking
+     * beam own their own turn, and must not be re-aimed from the boss.
+     */
+    public static boolean tracksWhileWarning(int mode) { return mode==0; }
+    public static double sweepOffset(double age,int warning,int duration,int mode) {
+        return SWEEP_DIRECTION*sweepTurn(mode)*Math.clamp(age-warning,0,Math.max(0,duration-1));
+    }
     public static boolean active(double age,int warning,int duration) { return age>=warning && age<warning+duration; }
     public static double impactRadius(int kind,double radius) {
         return Math.clamp(radius,kind==1?.08:.3,kind==1?1.5:8);

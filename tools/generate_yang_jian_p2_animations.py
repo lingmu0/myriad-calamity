@@ -76,10 +76,12 @@ def append_p2(pose, finish, attack_pose):
     loaded['left_shin']=[-65,0,0];loaded['right_shin']=[-56,0,0]
     loaded['left_foot']=[-13,0,0];loaded['right_foot']=[-10,0,0]
     frames=[frame(0,pose()),frame(6,launch,-1.0),frame(15,rise),frame(24,call),frame(32,call)]
-    for tick,yaw in ((40,-90),(46,-58),(52,0),(58,58),(64,90)):
+    # One complete turn in a single direction. The model is mirrored, so the clockwise look is
+    # authored as increasing yaw, which also keeps it in step with the whip and the combo spins.
+    for tick,yaw in ((40,0),(46,72),(52,144),(58,216),(64,288)):
         p=copy.deepcopy(loaded)
         p['root']=[0,yaw,0]
-        # A complete half-circle sweep; the elbow flexes midway while the torso,
+        # A complete full-circle sweep; the elbow flexes midway while the torso,
         # bent knees and ankles counterbalance the weight of the enlarged axe.
         arc=math.sin((tick-40)/24*math.pi)
         p['waist'][2]=arc*5;p['chest'][2]=-arc*7
@@ -87,13 +89,14 @@ def append_p2(pose, finish, attack_pose):
         p['left_thigh'][0]+=arc*7;p['right_thigh'][0]-=arc*9
         p['left_shin'][0]-=arc*8;p['right_shin'][0]+=arc*6
         frames.append(frame(tick,p))
-    dive=copy.deepcopy(loaded);dive['root']=[0,50,0]
+    dive=copy.deepcopy(loaded);dive['root']=[0,324,0]
     dive['hips'][0]=-3;dive['chest'][0]=4
     impact=pose(hips=[18,0,0],waist=[19,0,0],chest=[31,0,0],neck=[-12,0,0],head=[-18,0,0],
         right_arm=[52,-8,-12],right_forearm=[-14,0,13],right_hand=[-60.85,0,0],
         left_arm=[66,20,43],left_forearm=[-31,-15,25],left_hand=[-22,0,-14],
         left_thigh=[47,0,-10],right_thigh=[-27,0,10],left_shin=[-48,0,0],right_shin=[32,0,0],
         left_foot=[9,0,0],right_foot=[-15,0,0])
+    impact['root']=[0,360,0]
     recoil=copy.deepcopy(impact)
     recoil['hips'][0]=-13;recoil['chest'][0]=-21
     recoil['right_forearm'][0]=-22;recoil['left_forearm'][0]=-40
@@ -102,14 +105,20 @@ def append_p2(pose, finish, attack_pose):
     recovery=pose(hips=[3,0,0],waist=[2,0,0],chest=[4,0,0],head=[-4,0,0],
         right_arm=[19,-8,-8],right_forearm=[-17,0,9],right_hand=[-59.9,0,0],left_arm=[17,0,10],
         left_thigh=[12,0,-5],right_thigh=[-9,0,5],left_shin=[-10,0,0],right_shin=[8,0,0])
+    # 360 faces exactly where 0 does, so holding that value keeps the finished turn intact
+    # instead of splining a spurious extra revolution on the way into the P2 idle.
+    for part in (recoil,settle,recovery):
+        part['root']=[0,360,0]
+    ending=pose();ending['root']=[0,360,0]
     # Adjacent hold keys arrest Catmull-Rom's post-impact angular overshoot; with
     # a threefold shaft even a small overshoot would drive the axe under ground.
     frames += [frame(68,dive),frame(72,impact,-1.2),frame(72.1,impact,-1.2),frame(75.9,impact,-1.2),
         frame(76,impact,-1.2),frame(83,recoil,-.6),frame(96,settle,-.4),frame(112,recovery),
-        frame(126,recovery),frame(132,recovery),frame(144,pose())]
+        frame(126,recovery),frame(132,recovery),frame(144,ending)]
     finish('transition',frames,144,metadata={'ascent_ticks':[0,24],'summon_ticks':[24,40],
-        'sweep_ticks':[40,64],'sweep_arc_degrees':180,'hit_ticks':[72],
-        'shockwave_ticks':[96,126],'recovery_end_tick':144,'server_owns_flight':True})
+        'sweep_ticks':[40,64],'sweep_arc_degrees':360,'hit_ticks':[72],
+        'early_shockwave_ticks':[84,95],'shockwave_ticks':[96,126],
+        'recovery_end_tick':144,'server_owns_flight':True})
     summon=pose(chest=[-4,0,0],head=[-9,0,0],right_arm=[112,-10,-15],right_forearm=[-42,0,18],
         right_hand=[-77,0,0],left_arm=[70,10,29],left_forearm=[-15,0,-14],left_hand=[-25,0,0])
     finish('axe_summon',[frame(0,pose()),frame(16,summon),frame(24,summon,.3),frame(28,axe(True),-.3),frame(37,pose())],37)
@@ -136,16 +145,17 @@ def append_p2(pose, finish, attack_pose):
         ready=pose(hips=[5,0,0],waist=[5,0,0],chest=[7,0,0],head=[-9,0,0],
             right_arm=[60,-15,-28],right_forearm=[-18,0,21],right_hand=[-100,0,-14],
             left_arm=[35,0,33],left_forearm=[-38,0,-18],left_thigh=[15,0,-7],right_thigh=[-15,0,7])
-        load=copy.deepcopy(ready);load['root']=[0,arc/2,0]
+        load=copy.deepcopy(ready);load['root']=[0,-arc/2,0]
         frames=[frame(0,pose()),frame(windup*.55,load,-.4),frame(windup,load,-.4)]
         for i in range(1,active+1):
             p=copy.deepcopy(ready)
-            p['root']=[0,arc/2-arc*i/active,0]
+            # Increasing authored yaw is the clockwise look every rotating attack shares.
+            p['root']=[0,-arc/2+arc*i/active,0]
             p['left_thigh']=[math.sin(i/active*math.pi*2)*16,0,-7]
             p['right_thigh']=[-p['left_thigh'][0],0,7]
             p['chest'][2]=math.sin(i/active*math.pi)*-5
             frames.append(frame(windup+i,p,-.4))
-        end=pose();end['root']=[0,-360 if arc==360 else 0,0]
+        end=pose();end['root']=[0,360 if arc==360 else 0,0]
         frames.append(frame(windup+active+recovery,end))
         finish(name,frames,windup+active+recovery,metadata={'hit_ticks':[windup],'windup_ticks':[windup],
             'active_ticks':active,'arc_degrees':arc})

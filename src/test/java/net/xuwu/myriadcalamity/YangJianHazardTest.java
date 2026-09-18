@@ -15,6 +15,17 @@ public final class YangJianHazardTest {
         check(!YangJianHazardMath.active(19.999,20,32),"The entire warning interval is harmless");
         check(YangJianHazardMath.active(20,20,32) && YangJianHazardMath.active(51,20,32),"The advertised beam has its complete active window");
         check(!YangJianHazardMath.active(52,20,32),"An expired beam cannot leave a damaging trace");
+        check(YangJianHazardMath.SWEEP_DIRECTION>0,"The world-space laser rake advances clockwise");
+        check(near(YangJianHazardMath.sweepOffset(23.9,24,32,3),0),"Charge holds the sweep's initial direction");
+        check(near(YangJianHazardMath.sweepOffset(40,24,32,3),Math.toRadians(65)),"The body midpoint starts the clone exactly halfway through its clockwise arc");
+        check(near(YangJianHazardMath.sweepOffset(40.5,24,32,3),Math.toRadians(65+2.03125)),"Head and beam sample the same clockwise sub-tick sweep angle");
+        check(near(YangJianHazardMath.sweepOffset(100,24,32,3),YangJianHazardMath.FAST_SWEEP_TURN*31),"Finished sweep never extrapolates beyond its last damaging frame");
+        check(YangJianHazardMath.COMBO_SWEEP_TICKS==16 && near(YangJianHazardMath.sweepTurn(4)*16,Math.toRadians(64)),"Air-combo sweep keeps its arc but completes in half the previous time");
+        check(YangJianHazardMath.tracksWhileWarning(0),"A fixed eye shot keeps tracking its target while the eye charges");
+        check(!YangJianHazardMath.tracksWhileWarning(1) && !YangJianHazardMath.tracksWhileWarning(3)
+            && !YangJianHazardMath.tracksWhileWarning(4),"Sweeps keep the cast heading through their charge");
+        check(!YangJianHazardMath.tracksWhileWarning(2),"The self-turning tracking beam is not re-aimed from the boss");
+        check(YangJianHazardMath.RED_THUNDER_HEIGHT>=14,"The red-thunder pillar stays a full-height landmark when it lands");
         var forward=new YangJianEffects.Direction(1,0,0);
         var target=new YangJianEffects.Direction(0,1,1).normalized();
         var turned=YangJianHazardMath.turn(forward,target,YangJianHazardMath.TRACK_TURN);

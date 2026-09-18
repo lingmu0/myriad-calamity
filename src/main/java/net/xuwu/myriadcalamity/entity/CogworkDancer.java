@@ -72,15 +72,15 @@ public final class CogworkDancer extends Monster {
     public static AttributeSupplier.Builder attributes() {
         // Entity attributes are requested before NeoForge has loaded the common config.
         // Use the spec defaults here; configured values are applied when an encounter is summoned.
-        return Monster.createMonsterAttributes().add(Attributes.MAX_HEALTH,MyriadConfig.DEFAULT_BOSS_HEALTH).add(Attributes.ARMOR,6)
-            .add(Attributes.MOVEMENT_SPEED,0.32).add(Attributes.ATTACK_DAMAGE,MyriadConfig.DEFAULT_BOSS_DAMAGE)
+        return Monster.createMonsterAttributes().add(Attributes.MAX_HEALTH,MyriadConfig.DEFAULT_DANCER_HEALTH).add(Attributes.ARMOR,6)
+            .add(Attributes.MOVEMENT_SPEED,0.32).add(Attributes.ATTACK_DAMAGE,MyriadConfig.DEFAULT_DANCER_DAMAGE)
             .add(Attributes.FOLLOW_RANGE,40).add(Attributes.KNOCKBACK_RESISTANCE,1);
     }
     private void applyConfiguredAttributes(boolean fillHealth) {
         var maxHealth=getAttribute(Attributes.MAX_HEALTH);
-        if(maxHealth!=null) maxHealth.setBaseValue(MyriadConfig.bossHealth());
+        if(maxHealth!=null) maxHealth.setBaseValue(MyriadConfig.dancerHealth());
         var attackDamage=getAttribute(Attributes.ATTACK_DAMAGE);
-        if(attackDamage!=null) attackDamage.setBaseValue(MyriadConfig.bossDamage());
+        if(attackDamage!=null) attackDamage.setBaseValue(MyriadConfig.dancerDamage());
         if(fillHealth) setHealth(getMaxHealth());
     }
     @Override protected void registerGoals() { /* The encounter choreography owns movement and targeting. */ }
@@ -90,9 +90,10 @@ public final class CogworkDancer extends Monster {
     }
     public int action() { return entityData.get(ACTION); }
     public int phase() { return entityData.get(PHASE); }
-    public int attackWindup() { return action()==BARRAGE?CombatMath.BARRAGE_WINDUP_TICKS:CombatMath.windup(phase()); }
+    /** Every move, including the interwoven dash barrage, telegraphs for its own phase's windup. */
+    public int attackWindup() { return CombatMath.windup(phase()); }
     public int queuedAction() { return entityData.get(NEXT_PLAN).getInt("a"); }
-    public int queuedAttackWindup() { return queuedAction()==BARRAGE?CombatMath.BARRAGE_WINDUP_TICKS:CombatMath.windup(phase()); }
+    public int queuedAttackWindup() { return CombatMath.windup(phase()); }
     public float queuedActionAge(float partial) {
         CompoundTag plan=entityData.get(NEXT_PLAN);
         return plan.contains("t")?level().getGameTime()-plan.getLong("t")+partial:-1;
@@ -519,7 +520,7 @@ public final class CogworkDancer extends Monster {
                 if(active==0 && position().distanceToSqr(attackStart)>1) { finishAttack();return; }
                 if(active<CombatMath.DASH_TRAVEL_TICKS) {
                     Vec3 before=position();steer(attackEnd,phase()==4?2.8:2.6);
-                    strikeSegment(before,before.add(getDeltaMovement()),1.35,MyriadConfig.scaleDamage(phase()==4?5:9));
+                    strikeSegment(before,before.add(getDeltaMovement()),1.35,MyriadConfig.scaleDancerDamage(phase()==4?5:9));
                     if(active%2==0)particles(ParticleTypes.SWEEP_ATTACK,position().add(0,1,0),1,0.1);
                 } else { setDeltaMovement(Vec3.ZERO);if(active>=CombatMath.DASH_ACTIVE_TICKS)finishAttack(); }
             }
@@ -534,7 +535,7 @@ public final class CogworkDancer extends Monster {
                     }
                     double radius=Math.min(CombatMath.SLAM_RADIUS,(active-8)*0.45);
                     // The surface and hit height are independent of the hovering entity's position.
-                    if(active<=27) { ring(attackEnd.add(0,0.08,0),radius);strikeGroundWave(attackEnd,radius,0.55,MyriadConfig.scaleDamage(10)); }
+                    if(active<=27) { ring(attackEnd.add(0,0.08,0),radius);strikeGroundWave(attackEnd,radius,0.55,MyriadConfig.scaleDancerDamage(10)); }
                     if(active>=42)finishAttack();
                 }
             }
@@ -554,10 +555,10 @@ public final class CogworkDancer extends Monster {
                     }
                     if(!follower() && (active-16)%7==0) {
                         playSound(SoundEvents.TRIDENT_THROW.value(),0.8F,1.35F+(active-16)*0.006F);
-                        CogworkBlade.spawnWave((ServerLevel)level(),this,attackEnd.add(0,1.2,0),24,0.7F,MyriadConfig.scaleDamage(6),
+                        CogworkBlade.spawnWave((ServerLevel)level(),this,attackEnd.add(0,1.2,0),24,0.7F,MyriadConfig.scaleDancerDamage(6),
                             (active-16)*0.065);
                     }
-                    strikeRing(attackEnd,0,CombatMath.DUET_RADIUS,3.2,MyriadConfig.scaleDamage(12));
+                    strikeRing(attackEnd,0,CombatMath.DUET_RADIUS,3.2,MyriadConfig.scaleDancerDamage(12));
                 } else {
                     steer(attackEnd.add(follower()?0.7:-0.7,1,0),0.15);
                     if(active>=78)finishAttack();
@@ -590,7 +591,7 @@ public final class CogworkDancer extends Monster {
                 }
                 if(barrageReady) {
                     Vec3 before=position();steer(end,4.2);
-                    strikeSegment(before,before.add(getDeltaMovement()),CombatMath.BARRAGE_LANE_RADIUS,MyriadConfig.scaleDamage(7));
+                    strikeSegment(before,before.add(getDeltaMovement()),CombatMath.BARRAGE_LANE_RADIUS,MyriadConfig.scaleDancerDamage(7));
                     particles(ParticleTypes.SWEEP_ATTACK,position().add(0,1,0),2,0.2);
                 } else setDeltaMovement(Vec3.ZERO);
             } else setDeltaMovement(Vec3.ZERO);

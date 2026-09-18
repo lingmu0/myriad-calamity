@@ -29,6 +29,8 @@ public final class YangJianHazard extends Entity {
     private long lease;
     private float damage;
     private boolean expired,impacted;
+    @Nullable private Vec3 visualOrigin;
+    private long visualOriginTick=Long.MIN_VALUE;
     public YangJianHazard(EntityType<? extends YangJianHazard> type,Level level) { super(type,level);noPhysics=true;setNoGravity(true); }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(PLAN,new CompoundTag()); }
     @Nullable public YangJian getOwner() {
@@ -40,15 +42,17 @@ public final class YangJianHazard extends Entity {
     private static boolean room(ServerLevel level,YangJian boss) {
         return valid(boss) && level.getEntitiesOfClass(YangJianHazard.class,boss.getBoundingBox().inflate(96),h->boss.getUUID().equals(h.caster)).size()<YangJianHazardMath.MAX_HAZARDS;
     }
-    public static void beam(ServerLevel level,YangJian owner,Vec3 origin,Vec3 direction,double range,double radius,int warning,int active,int mode,float damage) {
-        if(!room(level,owner) || !finite(origin) || !finite(direction) || direction.lengthSqr()<1E-8)return;
-        YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level);if(h==null)return;
+    @Nullable public static YangJianHazard beam(ServerLevel level,YangJian owner,Vec3 origin,Vec3 direction,double range,double radius,int warning,int active,int mode,float damage) {
+        if(!room(level,owner) || !finite(origin) || !finite(direction) || direction.lengthSqr()<1E-8)return null;
+        YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level);if(h==null)return null;
         h.bind(owner,damage);CompoundTag p=h.base(1,warning,Math.clamp(active,1,100),radius);
         // Mode 3 is a short clone-sweep pass; it shares the beam renderer with
         // the normal sweep but turns farther each active tick.
-        p.putInt("mode",Math.clamp(mode,0,3));p.putDouble("range",Math.clamp(range,1,48));
+        p.putInt("mode",Math.clamp(mode,0,4));p.putDouble("range",Math.clamp(range,1,48));
+        write(p,"initial",direction.normalize());write(p,"previous",direction.normalize());
         write(p,"s",origin);write(p,"d",direction.normalize());write(p,"e",h.clip(origin,origin.add(direction.normalize().scale(p.getDouble("range")))));
         h.entityData.set(PLAN,p);h.setPos(origin);level.addFreshEntity(h);
+        return h;
     }
     public static void strike(ServerLevel level,YangJian owner,Vec3 ground,float radius,int warning,boolean sword,float damage) {
         strike(level,owner,ground,radius,warning,sword,damage,false);
@@ -65,7 +69,24 @@ public final class YangJianHazard extends Entity {
         Vec3 at=floor.getLocation().add(0,.035,0);
         YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level);if(h==null)return;
         h.bind(owner,damage);CompoundTag p=h.base(sword?2:3,warning,6,radius);p.putBoolean("persistent",persistent);
-        write(p,"s",at);write(p,"e",at.add(0,8,0));h.entityData.set(PLAN,p);h.setPos(at);level.addFreshEntity(h);
+        // The culling volume follows the rendered pillar, not the old eight-block drop.
+        write(p,"s",at);write(p,"e",at.add(0,sword?8:YangJianHazardMath.RED_THUNDER_HEIGHT,0));
+        h.entityData.set(PLAN,p);h.setPos(at);level.addFreshEntity(h);
+    }
+    /**
+     * A fixed eye shot keeps following its victim for the whole warning, so the beam is
+     * released along the player's live position instead of where they stood at the windup.
+     * Sweeps and the tracking beam own their own turn and are never re-aimed here.
+     */
+    public void aimWhileWarning(Vec3 origin,Vec3 aim) {
+        if(!warning(0) || !finite(origin) || !finite(aim))return;
+        Vec3 direction=aim.subtract(origin);
+        if(direction.lengthSqr()<1E-8)return;
+        direction=direction.normalize();
+        CompoundTag p=entityData.get(PLAN).copy();
+        write(p,"initial",direction);write(p,"previous",direction);write(p,"d",direction);
+        write(p,"s",origin);write(p,"e",clip(origin,origin.add(direction.scale(p.getDouble("range")))));
+        entityData.set(PLAN,p);
     }
     private void bind(YangJian owner,float amount) {
         caster=owner.getUUID();lease=owner.attackSequence();damage=Float.isFinite(amount)?Math.clamp(amount,.1F,10000):1;
@@ -92,6 +113,33 @@ public final class YangJianHazard extends Entity {
     public float age(float partial) { return level().getGameTime()-entityData.get(PLAN).getLong("time")+partial; }
     public Vec3 start() { return read(entityData.get(PLAN),"s"); }
     public Vec3 end() { return read(entityData.get(PLAN),"e"); }
+    /** Both the rendered head and beam consume this same fractional-tick direction. */
+    public Vec3 visualDirection(float partial) {
+        CompoundTag p=entityData.get(PLAN);
+        if(YangJianHazardMath.sweeping(mode()))return sweepDirection(age(partial));
+        Vec3 current=read(p,"d");
+        if(mode()==2 && active(partial))return read(p,"previous").lerp(current,Math.clamp(partial,0,1)).normalize();
+        return current;
+    }
+    public Vec3 visualEnd(float partial) {
+        if(kind()!=1)return end();
+        Vec3 from=visualStart(partial);
+        // Clip the smoothed ray at its current angle as well: a wall corner
+        // must not inherit the previous frame's longer unobstructed distance.
+        return clip(from,from.add(visualDirection(partial).scale(entityData.get(PLAN).getDouble("range"))));
+    }
+    public Vec3 visualStart(float partial) {
+        return level().isClientSide && visualOrigin!=null && level().getGameTime()-visualOriginTick<=1?visualOrigin:start();
+    }
+    /** The client model publishes its actual animated forehead attachment each frame. */
+    public void setVisualOrigin(Vec3 point) {
+        if(level().isClientSide && finite(point)) { visualOrigin=point;visualOriginTick=level().getGameTime(); }
+    }
+    private Vec3 sweepDirection(double age) {
+        Vec3 initial=read(entityData.get(PLAN),"initial");
+        double a=YangJianHazardMath.sweepOffset(age,windup(),duration(),mode()),c=Math.cos(a),s=Math.sin(a);
+        return new Vec3(initial.x*c-initial.z*s,initial.y,initial.x*s+initial.z*c);
+    }
     public boolean warning(float partial) { return ready() && age(partial)>=0 && age(partial)<windup(); }
     public boolean active(float partial) { return ready() && YangJianHazardMath.active(age(partial),windup(),duration()); }
     private boolean stillValid(YangJian owner) { return !isRemoved() && valid(owner) && (persistent() || owner.attackSequence()==lease); }
@@ -104,11 +152,10 @@ public final class YangJianHazard extends Entity {
         if(!persistentStrike && !active(0))return;
         if(kind()==1) {
             CompoundTag p=entityData.get(PLAN).copy();Vec3 direction=read(p,"d");
+            write(p,"previous",direction);
             if(age(0)>windup()) {
-                if(mode()==1 || mode()==3) {
-                    double a=mode()==3?YangJianHazardMath.FAST_SWEEP_TURN:YangJianHazardMath.SWEEP_TURN;
-                    double c=Math.cos(a),s=Math.sin(a);
-                    direction=new Vec3(direction.x*c-direction.z*s,direction.y,direction.x*s+direction.z*c);
+                if(YangJianHazardMath.sweeping(mode())) {
+                    direction=sweepDirection(age(0));
                 } else if(mode()==2 && target!=null && server.getEntity(target) instanceof LivingEntity player && owner.validTarget(player)) {
                     Vec3 desired=player.position().add(0,player.getBbHeight()*.5,0).subtract(start()).normalize();
                     var turn=YangJianHazardMath.turn(new YangJianEffects.Direction(direction.x,direction.y,direction.z),new YangJianEffects.Direction(desired.x,desired.y,desired.z),YangJianHazardMath.TRACK_TURN);
@@ -151,7 +198,9 @@ public final class YangJianHazard extends Entity {
     }
     @Override public AABB getBoundingBoxForCulling() {
         if(!ready())return super.getBoundingBoxForCulling();
-        return persistent()?new AABB(start(),start()).inflate(radius()+1,2.5,radius()+1):new AABB(start(),end()).inflate(radius()+1);
+        return persistent() && age(0)>=windup()+duration()
+            ?new AABB(start(),start()).inflate(radius()+1,YangJianHazardMath.RED_THUNDER_HEIGHT,radius()+1)
+            :new AABB(start(),end()).inflate(radius()+1);
     }
     @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance<128*128; }
     @Override public boolean isPickable() { return false; }

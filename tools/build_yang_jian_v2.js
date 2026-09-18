@@ -1,5 +1,7 @@
 (() => {
   const bones = {}, parts = [];
+  /** Degrees each upper arm is held away from the body in the rest pose and every clip. */
+  const ARM_ABDUCTION=10;
   const mat = {
     iron: {color:[72,79,89], noise:4, edge:16}, steel:{color:[126,133,141],noise:4,edge:20},
     silver:{color:[176,181,184],noise:3,edge:13}, dark:{color:[39,45,55],noise:3,edge:7},
@@ -66,7 +68,9 @@
   group('hair_back_01',[0,56,2.7],'head'); group('hair_back_02',[0,47,3.6],'hair_back_01'); group('hair_back_03',[0,38,4.4],'hair_back_02');
   for(const sign of [-1,1]) {
     const side=sign===1?'right':'left';
-    group(side+'_arm',[sign*8.15,42,0],'chest');
+    // The upper arms are abducted off the ribs. Without this base rotation the arm hangs flush
+    // against the cuirass, which made every bent elbow read as clipping into the torso.
+    group(side+'_arm',[sign*8.15,42,0],'chest',[0,0,sign*ARM_ABDUCTION]);
     group(side+'_shoulder',[sign*8.3,42.3,0],side+'_arm',[0,0,-sign*9]);
     group(side+'_forearm',[sign*9.65,35.2,0],side+'_arm');
     group(side+'_hand',[sign*(sign===1?12.5:10.15),sign===1?30.9:27.8,sign===1?-2.7:-.5],side+'_forearm');

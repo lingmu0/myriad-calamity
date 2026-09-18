@@ -8,6 +8,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.entity.YangJian;
+import net.xuwu.myriadcalamity.entity.YangJianHazard;
 import net.xuwu.myriadcalamity.entity.YangJianSkill;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -18,6 +19,7 @@ final class YangJianCombatEffects {
         VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
         Matrix4f m=pose.last().pose();
         float age=boss.actionAge(partial);
+        eyeCharge(boss,model,partial,v,m);
         if(boss.phase()==3 || boss.action()==YangJian.THIRD_EYE_OPEN)divine(boss,model,partial,age,v,m);
         if(boss.action()==YangJian.SWEEP_BEAM && boss.hasSweepClone()) {
             sweepCloneVeil(boss,partial,pose,v);
@@ -82,89 +84,26 @@ final class YangJianCombatEffects {
             float envelope=Mth.sin((age-22)/46*Mth.PI);
             ring(v,m,Vec3.ZERO,1+(age-22)*.06,.055,((int)(envelope*170)<<24)|0xF8A4BC);
         }
-        if(boss.action()==YangJian.DIVINE_SWEEP && age>=20 && age<33) {
-            double heading=Math.atan2(boss.dashEnd().z-boss.dashStart().z,boss.dashEnd().x-boss.dashStart().x);
-            double arc=Math.toRadians(boss.telegraphAngle()),reach=boss.telegraphRadius();
-            double progress=Mth.clamp((age-20)/10,0,1);
-            float fade=age>30?1-(age-30)/3:1;
-            double swept=Math.min(arc*progress,Math.toRadians(75));
-            double height=YangJianSkill.DIVINE_SWEEP_HEIGHT;
-            // The spear is part of the animated rig. Sample its actual tip so
-            // the lightning begins at the blade instead of at the caster's
-            // centre. The hand-height plane remains shared with the server
-            // hitbox; only the horizontal tip offset is taken from the model.
-            float bodyYaw=Mth.rotLerp(partial,boss.yBodyRotO,boss.yBodyRot);
-            Vec3 sampledGrip=model.heldWeaponPoint(bodyYaw,0,-10.8F/16F,0);
-            Vec3 sampledTip=model.heldWeaponPoint(bodyYaw,0,-70.135F/16F,0);
-            double expectedFront=heading+arc*.5-swept;
-            Vec3 weaponAxis=sampledTip.subtract(sampledGrip).multiply(1,0,1);
-            boolean finiteAxis=Double.isFinite(weaponAxis.x) && Double.isFinite(weaponAxis.z)
-                && weaponAxis.horizontalDistanceSqr()>.0001;
-            double front=expectedFront;
-            if(finiteAxis) {
-                // The authored weapon forward axis is a quarter-turn clockwise
-                // from the in-game horizontal sweep axis. Rotate it back
-                // counter-clockwise so the bolt leaves the visible spear tip.
-                weaponAxis=new Vec3(weaponAxis.z,0,-weaponAxis.x);
-                front=Math.atan2(weaponAxis.z,weaponAxis.x);
-            } else weaponAxis=new Vec3(Math.cos(expectedFront),0,Math.sin(expectedFront));
-            boolean finiteTip=Double.isFinite(sampledTip.x) && Double.isFinite(sampledTip.z);
-            double tipRadius=finiteTip?Math.hypot(sampledTip.x,sampledTip.z):Double.NaN;
-            if(!Double.isFinite(tipRadius) || tipRadius<.7 || tipRadius>=reach-.35) {
-                tipRadius=Math.clamp(reach-2.4,.7,Math.max(.7,reach-.35));
-                front=expectedFront;
-                weaponAxis=new Vec3(Math.cos(front),0,Math.sin(front));
-                sampledTip=new Vec3(Math.cos(front)*tipRadius,0,Math.sin(front)*tipRadius);
-            }
-            double lightningLength=Math.max(1.6,reach-tipRadius);
-            double outerReach=tipRadius+lightningLength;
-            // Keep the trailing arc tied to the current tip direction. This
-            // compensates for the model's local forward axis and mirror, which
-            // otherwise produces the same quarter-turn laser deflection bug.
-            double visualHeading=front-arc*.5+swept;
-            for(int i=0;i<18;i++) {
-                double a=visualHeading+arc*.5-swept*i/18,b=visualHeading+arc*.5-swept*(i+1)/18;
-                int alpha=(int)(fade*(.62F+.38F*Mth.sin((float)(time*.92+i*1.73)))*225);
-                double middle=(a+b)*.5;
-                Vec3 from=new Vec3(Math.cos(middle)*tipRadius,height,Math.sin(middle)*tipRadius);
-                Vec3 to=new Vec3(Math.cos(middle)*outerReach,height,Math.sin(middle)*outerReach);
-                redLightning(v,m,from,to,.105,(alpha<<24)|0xD20F2D,(Math.min(255,alpha+34)<<24)|0xFFE1E7,time*.72+i*2.3);
-                // Short branches make the sweep read as a moving red lightning
-                // arc rather than a static ribbon around the arena.
-                if((i&2)==0) {
-                    Vec3 fork=from.lerp(to,.58);
-                    double forkAngle=middle+.22*Math.sin(time*.81+i*2.1);
-                    Vec3 forkEnd=fork.add(Math.cos(forkAngle)*(.45+.14*Math.sin(time+i)),
-                        .18*Math.sin(time*1.13+i*.9),Math.sin(forkAngle)*(.45+.14*Math.sin(time+i)));
-                    redLightning(v,m,fork,forkEnd,.045,(Math.min(220,alpha+8)<<24)|0xB50A27,
-                        (Math.min(255,alpha+26)<<24)|0xFFD0D8,time*1.08+i*3.7);
-                }
-            }
-            Vec3 tip=new Vec3(sampledTip.x,height,sampledTip.z);
-            Vec3 tipEnd=tip.add(weaponAxis.normalize().scale(lightningLength));
-            redLightning(v,m,tip,tipEnd,
-                .06,((int)(fade*205)<<24)|0xD51030,(int)(fade*235)<<24|0xFFE2E7,time*1.2+9.0);
-        }
     }
 
-    /** Draws a branching, time-varying bolt between two sweep points. */
-    private static void redLightning(VertexConsumer v,Matrix4f m,Vec3 from,Vec3 to,double width,
-        int outerColor,int coreColor,double seed) {
-        Vec3 delta=to.subtract(from);double length=delta.length();
-        if(length<1E-4)return;
-        Vec3 axis=delta.scale(1/length);
-        Vec3 reference=Math.abs(axis.y)>.92?new Vec3(1,0,0):new Vec3(0,1,0);
-        Vec3 side=axis.cross(reference).normalize();
-        Vec3 vertical=side.cross(axis).normalize();
-        Vec3 previous=from;
-        for(int i=1;i<=5;i++) {
-            double t=i/5D;
-            Vec3 point=i==5?to:from.lerp(to,t)
-                .add(side.scale(Math.sin(seed+i*2.17)*.18*(1-t)))
-                .add(vertical.scale(Math.cos(seed*.83+i*1.61)*.12*(1-t)));
-            beam(v,m,previous,point,width*(.82+.18*Math.sin(seed+i)),outerColor);
-            beam(v,m,previous,point,width*.28,coreColor);
-            previous=point;
+    private static void eyeCharge(YangJian boss,YangJianModel model,float partial,VertexConsumer v,Matrix4f m) {
+        YangJianHazard hazard=boss.currentBeam();
+        if(hazard==null || !hazard.warning(partial))return;
+        float charge=Mth.clamp(hazard.age(partial)/Math.max(1,hazard.windup()),0,1);
+        float bodyYaw=Mth.rotLerp(partial,boss.yBodyRotO,boss.yBodyRot);
+        Vec3 eye=model.eyePoint(bodyYaw);
+        Vec3 direction=hazard.visualDirection(partial).normalize();
+        Vec3 side=direction.cross(Math.abs(direction.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize();
+        Vec3 up=direction.cross(side).normalize();
+        double pulse=.8+.2*Math.sin((boss.tickCount+partial)*1.2);
+        double radius=.035+charge*.085;
+        Vec3 center=eye.add(direction.scale(.025));
+        int alpha=(int)((100+150*charge)*pulse);
+        for(Vec3 axis:new Vec3[]{side,up}) {
+            beam(v,m,center.subtract(axis.scale(radius)),center.add(axis.scale(radius)),.035+charge*.025,
+                ((int)(alpha*.35)<<24)|0xFFCF38);
+            beam(v,m,center.subtract(axis.scale(radius*.55)),center.add(axis.scale(radius*.55)),.012,
+                (alpha<<24)|0xFFF5B6);
         }
     }
 
@@ -179,7 +118,8 @@ final class YangJianCombatEffects {
         pose.scale(-1F,-1F,1F);pose.scale(YangJianRenderer.MODEL_SCALE,YangJianRenderer.MODEL_SCALE,YangJianRenderer.MODEL_SCALE);
         pose.translate(0,-1.501,0);
         VertexConsumer ghost=buffers.getBuffer(RenderType.entityTranslucent(YangJianRenderer.TEXTURE));
-        model.renderToBuffer(pose,ghost,15728880,OverlayTexture.NO_OVERLAY,0x35FFFFFF);
+        model.renderBeamClone(pose,ghost,15728880,OverlayTexture.NO_OVERLAY,0x35FFFFFF,
+            boss.sweepCloneYaw(),boss.cloneBeam(),partial);
         pose.popPose();
     }
 

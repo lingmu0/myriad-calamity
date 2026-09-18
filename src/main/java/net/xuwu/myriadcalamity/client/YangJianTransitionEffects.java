@@ -78,8 +78,8 @@ final class YangJianTransitionEffects {
                 lightning(v,m,new Vec3(0,.12,0),end,age+i*13,.13,alpha(205*fade,0xFFF7CF));
             }
         }
-        if(age>=YangJianTransition.IMPACT+10 && age<YangJianTransition.WAVE_START) {
-            double progress=(age-YangJianTransition.IMPACT-10)/(YangJianTransition.WAVE_START-YangJianTransition.IMPACT-10);
+        if(age>=YangJianTransition.IMPACT+10 && age<YangJianTransition.EARLY_WAVE_START) {
+            double progress=(age-YangJianTransition.IMPACT-10)/(YangJianTransition.EARLY_WAVE_START-YangJianTransition.IMPACT-10);
             ring(v,m,.55+progress*1.05,.055,.12,alpha(95+progress*130,0xFFE69B));
             ring(v,m,.45,.09,.08,alpha(90+progress*120,0xFFF9D1));
         }

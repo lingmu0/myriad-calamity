@@ -5,7 +5,7 @@ public final class CombatMath {
     public static final double ARENA_RADIUS=14.5, FIGHT_BOUNDARY_RADIUS=16.5,
         DUET_RADIUS=6.2*1.75, SLAM_RADIUS=8.5, SLAM_WARNING_RADIUS=2.0, WAVE_HEIGHT=0.4;
     public static final int DASH_TRAVEL_TICKS=12, DASH_ACTIVE_TICKS=28;
-    public static final int BARRAGE_WINDUP_TICKS=36, BARRAGE_PASSES=4, BARRAGE_PASS_TICKS=15;
+    public static final int BARRAGE_PASSES=4, BARRAGE_PASS_TICKS=15;
     public static final int BARRAGE_WARNING_TICKS=7, BARRAGE_DASH_TICKS=7, BARRAGE_RECOVERY_TICKS=8;
     public static final int BARRAGE_ACTIVE_TICKS=BARRAGE_PASSES*BARRAGE_PASS_TICKS+BARRAGE_RECOVERY_TICKS;
     public static final double BARRAGE_LANE_RADIUS=1.5, BARRAGE_SAFE_RADIUS=2.4;
@@ -93,7 +93,8 @@ public final class CombatMath {
         return partner.equals(lastStruck)?partner:hit;
     }
     public static boolean isFinale(float health,float maximum) { return health <= maximum*0.2F; }
-    public static int windup(int phase) { return switch (phase) { case 2 -> 24; case 3 -> 18; case 4 -> 52; default -> 34; }; }
+    /** Every phase telegraphs for less time than before, keeping the original ordering. */
+    public static int windup(int phase) { return switch (phase) { case 2 -> 18; case 3 -> 15; case 4 -> 35; default -> 28; }; }
     public static double segmentDistanceSquared(double px, double pz, double ax, double az, double bx, double bz) {
         double dx = bx - ax, dz = bz - az;
         double length = dx * dx + dz * dz;

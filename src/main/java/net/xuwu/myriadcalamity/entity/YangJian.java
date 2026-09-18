@@ -64,11 +64,16 @@ public final class YangJian extends Monster {
     private static final EntityDataAccessor<Boolean> ARENA_PREPARING=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.COMPOUND_TAG);
     private static final EntityDataAccessor<CompoundTag> ARENA=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<Integer> BEAM=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> CLONE_BEAM=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
     private static final int SWEEP_BEAM_SWEEP_TICKS=32;
     private static final int SWEEP_BEAM_HALF_TICKS=SWEEP_BEAM_SWEEP_TICKS/2;
     private static final int SWEEP_BEAM_PASS_COUNT=6;
     /** Three body sweeps start one full sweep apart; the last clone finishes the final half. */
     private static final int SWEEP_BEAM_TOTAL_ACTIVE_TICKS=SWEEP_BEAM_SWEEP_TICKS*3+SWEEP_BEAM_HALF_TICKS;
+    /** The aerial burst and the ultimate's two sword segments share one dense downpour shape. */
+    private static final int AERIAL_RAIN_START=24,AERIAL_RAIN_WARNING=18;
+    private static final int JUDGEMENT_RAIN_START=50,JUDGEMENT_DOWNPOUR_START=264;
     private final ServerBossEvent healthBar=new ServerBossEvent(Component.translatable("boss.myriad_calamity.yang_jian_p1"),BossEvent.BossBarColor.WHITE,BossEvent.BossBarOverlay.PROGRESS);
     private final ServerBossEvent guardBar=new ServerBossEvent(Component.translatable("boss.myriad_calamity.yang_jian_guard"),BossEvent.BossBarColor.BLUE,BossEvent.BossBarOverlay.NOTCHED_10);
     private final int[] cooldowns=new int[33];
@@ -107,6 +112,7 @@ public final class YangJian extends Monster {
         builder.define(APPROACH_STARTED,-1L);
         builder.define(GUARD_VALUE,180F);builder.define(GUARD_MAX,180F);builder.define(THROWN,false);builder.define(AXE_TRAIL_CHARGES,0);
         builder.define(COMPLETE,false);builder.define(ARENA_PREPARING,false);builder.define(PLAN,new CompoundTag());builder.define(ARENA,new CompoundTag());
+        builder.define(BEAM,-1);builder.define(CLONE_BEAM,-1);
     }
     public int action() { return entityData.get(ACTION); }
     public int phase() { return entityData.get(PHASE); }
@@ -148,6 +154,12 @@ public final class YangJian extends Monster {
     public boolean hasSweepClone() { return entityData.get(PLAN).getBoolean("cloneReady"); }
     public Vec3 sweepClone() { return point(entityData.get(PLAN),"clone"); }
     public float sweepCloneYaw() { return entityData.get(PLAN).getFloat("cloneYaw"); }
+    @Nullable public YangJianHazard currentBeam() { return liveBeam(entityData.get(BEAM)); }
+    @Nullable public YangJianHazard cloneBeam() { return liveBeam(entityData.get(CLONE_BEAM)); }
+    @Nullable private YangJianHazard liveBeam(int id) {
+        return level().getEntity(id) instanceof YangJianHazard beam && beam.isAlive() && beam.kind()==1
+            && (beam.warning(0) || beam.active(0))?beam:null;
+    }
     public boolean isArenaBoss() { return entityData.get(ARENA).contains("center"); }
     public BlockPos arenaCenter() { return isArenaBoss()?BlockPos.of(entityData.get(ARENA).getLong("center")):blockPosition(); }
     @Nullable public UUID arenaOwner() { return arenaOwner; }
@@ -211,6 +223,10 @@ public final class YangJian extends Monster {
             getNavigation().stop();setDeltaMovement(new Vec3(0,getDeltaMovement().y,0));return;
         }
         if(target!=null)setTarget(target);
+        if(phase()==3 && target!=null && currentBeam()==null) {
+            Vec3 towardEye=target.position().add(0,target.getBbHeight()*.5,0).subtract(eyeBeamOrigin());
+            setXRot((float)(-Math.atan2(towardEye.y,towardEye.horizontalDistance())*Mth.RAD_TO_DEG));
+        }
         if(action()==IDLE) {
             getNavigation().stop();setDeltaMovement(new Vec3(0,getDeltaMovement().y,0));
             if(entityData.get(APPROACH_STARTED)>=0 && tickApproach(target))return;
@@ -269,6 +285,7 @@ public final class YangJian extends Monster {
     }
     private boolean tickApproach(LivingEntity target) {
         int age=(int)approachAge(0);
+        if(phase()==3 && target!=null)face(target.position());
         if(age>=YangJianFootwork.DURATION) { endApproach();return false; }
         if(age<YangJianFootwork.WINDUP || age>=YangJianFootwork.MOVE_END)return true;
         Vec3 from=position(),toward=target.position().subtract(from).multiply(1,0,1);
@@ -363,6 +380,7 @@ public final class YangJian extends Monster {
         if(skill==YangJianSkill.RED_THUNDER)clearThirdHazards(true);
         if(phase()==2 && chainCount==0) { chainCount=1;chainLimit=2+random.nextInt(2); }
         entityData.set(PLAN,new CompoundTag());setInvisible(false);setNoGravity(false);
+        entityData.set(BEAM,-1);entityData.set(CLONE_BEAM,-1);
         entityData.set(ACTION,skill.action());entityData.set(STARTED,level().getGameTime());
         lockedTarget=target.getUUID();serverStep=-1;hitThisStep.clear();getNavigation().stop();
         setDeltaMovement(new Vec3(0,getDeltaMovement().y,0));cooldowns[skill.action()]=skill.cooldown();
@@ -405,23 +423,23 @@ public final class YangJian extends Monster {
     }
     private void castBeamAt(LivingEntity target,int warning,int duration,int mode,double radius,double range,float damage) {
         Vec3 aim=target.position().add(0,target.getBbHeight()*.5,0);
-        castBeamAt(target,warning,duration,mode,radius,range,damage,eyeBeamOrigin(),aim);
+        YangJianHazard beam=castBeamAt(target,warning,duration,mode,radius,range,damage,eyeBeamOrigin(),aim);
+        entityData.set(BEAM,beam==null?-1:beam.getId());
     }
     private void castBeamAt(LivingEntity target,int warning,int duration,int mode,double radius,double range,float damage,Vec3 aim) {
-        castBeamAt(target,warning,duration,mode,radius,range,damage,eyeBeamOrigin(),aim);
+        YangJianHazard beam=castBeamAt(target,warning,duration,mode,radius,range,damage,eyeBeamOrigin(),aim);
+        entityData.set(BEAM,beam==null?-1:beam.getId());
     }
-    private void castBeamAt(LivingEntity target,int warning,int duration,int mode,double radius,double range,float damage,Vec3 start,Vec3 aim) {
+    @Nullable private YangJianHazard castBeamAt(LivingEntity target,int warning,int duration,int mode,double radius,double range,float damage,Vec3 start,Vec3 aim) {
         Vec3 direction=aim.subtract(start).normalize();
-        if(mode==1 || mode==3) {
-            double turn=mode==3?YangJianHazardMath.FAST_SWEEP_TURN:YangJianHazardMath.SWEEP_TURN;
-            // Publish the beam at the beginning of the arc.  The hazard then
-            // advances in the positive direction, matching the model track
-            // (-half arc -> +half arc) instead of starting one half-turn past
-            // the target line.
-            double angle=-turn*duration*.5,c=Math.cos(angle),s=Math.sin(angle);
+        if(YangJianHazardMath.sweeping(mode)) {
+            // Publish the beam at the counter-clockwise end of the arc. The hazard then advances
+            // clockwise, the same way every other rotating attack turns.
+            double turn=YangJianHazardMath.sweepTurn(mode);
+            double angle=-YangJianHazardMath.SWEEP_DIRECTION*turn*duration*.5,c=Math.cos(angle),s=Math.sin(angle);
             direction=new Vec3(direction.x*c-direction.z*s,direction.y,direction.x*s+direction.z*c);
         }
-        YangJianHazard.beam((ServerLevel)level(),this,start,direction,range,radius,warning,duration,mode,damage);
+        return YangJianHazard.beam((ServerLevel)level(),this,start,direction,range,radius,warning,duration,mode,damage);
     }
     private void beginSweepBeam(LivingEntity target) {
         setNoGravity(true);sweepBeamPass=-1;sweepBodyPosition=position();sweepClonePosition=Vec3.ZERO;
@@ -452,7 +470,8 @@ public final class YangJian extends Monster {
         Vec3 origin=body?eyeBeamOrigin():sweepEyeOrigin(sweepClonePosition);
         Vec3 targetAim=target.position().add(0,target.getBbHeight()*.5,0);
         int warning=pass==0?YangJianSkill.SWEEP_BEAM.stepWindup(0):0;
-        castBeamAt(target,warning,SWEEP_BEAM_SWEEP_TICKS,3,.65F,42,MyriadConfig.scaleYangJianDamage(7),origin,targetAim);
+        YangJianHazard beam=castBeamAt(target,warning,SWEEP_BEAM_SWEEP_TICKS,3,.65F,42,MyriadConfig.scaleYangJianDamage(7),origin,targetAim);
+        entityData.set(body?BEAM:CLONE_BEAM,beam==null?-1:beam.getId());
         CompoundTag plan=entityData.get(PLAN).copy();plan.putInt("sweepPass",pass);plan.putInt("activeActor",body?0:1);
         writePoint(plan,"body",sweepBodyPosition);
         if(!body) {
@@ -523,11 +542,23 @@ public final class YangJian extends Monster {
     }
     private void thirdStage(int index) { publishPlan(index,0,0,position(),position(),position(),0,0); }
     private void tickPhaseThree(YangJianSkill skill,int age,LivingEntity target) {
-        // P3 aerial attacks publish damage from the eye/body anchor while the
-        // entity may be several blocks above the platform.  Keep the rendered
-        // body facing the locked player on every server tick, including the
-        // exact release frame and later sub-attacks in compound skills.
-        if(target!=null)face(target.position());
+        YangJianHazard beam=currentBeam();
+        if(beam!=null) {
+            // A fixed eye shot keeps the player in its sight for the whole charge and only
+            // freezes when the warning ends, so it fires along the live position instead of
+            // the spot the player occupied when the windup began.
+            if(target!=null && YangJianHazardMath.tracksWhileWarning(beam.mode()))
+                beam.aimWhileWarning(eyeBeamOrigin(),target.position().add(0,target.getBbHeight()*.5,0));
+            // A sweep keeps its cast heading: the head follows the ray across
+            // that fixed arc. Directed shots turn the body with the live ray.
+            if(!YangJianHazardMath.sweeping(beam.mode())) {
+                Vec3 direction=beam.visualDirection(0);face(position().add(direction));
+                setXRot((float)(-Math.atan2(direction.y,direction.horizontalDistance())*Mth.RAD_TO_DEG));
+            }
+        } else if(skill==YangJianSkill.DIVINE_SWEEP && age<skill.activeEnd()) {
+            // The weapon and damage arc share the lock published at windup.
+            face(dashEnd());
+        } else if(target!=null)face(target.position());
         switch(skill) {
             case SWEEP_BEAM -> tickSweepBeam(age,target);
             case TRACKING_BEAM -> {
@@ -536,11 +567,21 @@ public final class YangJian extends Monster {
             }
             case MYRIAD_SWORDS -> {
                 if(age<=20)airHeight(5.5*age/20D);
-                if(age==26 || age==56 || age==86) { thirdStage((age-26)/30);swordWave(target,(age-26)/30,8,22,false); }
+                if(age>=YangJianEffects.MYRIAD_START_TICK && age<=YangJianEffects.MYRIAD_END_TICK
+                        && (age-YangJianEffects.MYRIAD_START_TICK)%YangJianEffects.MYRIAD_WAVE_INTERVAL==0) {
+                    int wave=(age-YangJianEffects.MYRIAD_START_TICK)/YangJianEffects.MYRIAD_WAVE_INTERVAL;thirdStage(wave);
+                    DivineFlyingSword.launchMyriad((ServerLevel)level(),this,target,wave);
+                }
                 if(age>=118 && age<=138)airHeight(5.5*(138-age)/20D);
             }
             case SWORD_RAIN -> {
-                if(age>=20 && age<=80 && (age-20)%20==0) { int wave=(age-20)/20;thirdStage(wave);swordWave(target,wave,8,20,true); }
+                // A continuous downpour: a pair of blades lands every four ticks for the whole
+                // window instead of four discrete waves, each still announced by its own warning.
+                if(YangJianSkill.swordRainDropsAt(age,skill.activeEnd())) {
+                    int drop=(age-YangJianSkill.SWORD_RAIN_FIRST)/YangJianSkill.SWORD_RAIN_INTERVAL;
+                    thirdStage(drop);
+                    swordWave(target,drop,YangJianSkill.SWORD_RAIN_PER_DROP,YangJianSkill.SWORD_RAIN_WARNING,true);
+                }
             }
             case RED_THUNDER -> {
                 if(age>=14 && age<=56 && (age-14)%14==0) { int wave=(age-14)/14;thirdStage(wave);thunderWave(target,wave,16,true); }
@@ -555,24 +596,38 @@ public final class YangJian extends Monster {
             }
             case AERIAL_COMBO -> {
                 if(age<=20)airHeight(4.5*age/20D);
-                if(age==24) { thirdStage(0);swordWave(target,0,6,18,false); }
-                if(age==60) { thirdStage(1);castBeam(target,16,22,2,.6); }
+                // The aerial sword rain is a short, dense burst of three close waves.
+                if(YangJianSkill.rainBurstAt(age,AERIAL_RAIN_START)) {
+                    int wave=YangJianSkill.rainBurstWave(age,AERIAL_RAIN_START);thirdStage(wave);
+                    swordWave(target,wave,YangJianSkill.RAIN_BURST_BLADES,
+                        YangJianSkill.rainBurstWarning(AERIAL_RAIN_WARNING,wave),false);
+                }
+                if(age==60) { thirdStage(1);castBeam(target,16,22,0,YangJianSkill.EYE_BEAM.radius()); }
                 if(age==104)planDive(2,20,4.8F,target);
                 dive(age,124,6,16);
                 if(age==140) { thirdStage(3);thunderWave(target,1,18); }
             }
             case DIVINE_JUDGEMENT -> {
                 if(age<=24)airHeight(6*age/24D);
-                if(age==50) { thirdStage(1);swordWave(target,0,9,26,false); }
+                // Both ultimate sword segments use the aerial combo's dense burst timing.
+                if(YangJianSkill.rainBurstAt(age,JUDGEMENT_RAIN_START)) {
+                    int wave=YangJianSkill.rainBurstWave(age,JUDGEMENT_RAIN_START);thirdStage(wave);
+                    swordWave(target,wave,YangJianSkill.RAIN_BURST_BLADES,
+                        YangJianSkill.rainBurstWarning(26,wave),false);
+                }
                 if(age==88)planDive(2,22,6,target);
                 dive(age,110,6,18);
                 if(age>=118 && age<=128)airHeight(4*(age-118)/10D);
-                if(age==130) { thirdStage(3);castBeam(target,24,32,1,.65); }
-                if(age==184) { thirdStage(4);castBeam(target,20,18,0,.7); }
+                if(age==130) { thirdStage(3);castBeam(target,24,YangJianHazardMath.COMBO_SWEEP_TICKS,4,.65); }
+                if(age==184) { thirdStage(4);castBeam(target,YangJianSkill.EYE_BEAM.stepWindup(0),YangJianSkill.EYE_BEAM.stepActive(0),0,YangJianSkill.EYE_BEAM.radius()); }
                 if(age==228) { thirdStage(5);thunderWave(target,2,24); }
-                if(age==264) { thirdStage(6);swordWave(target,2,8,24,true); }
+                if(YangJianSkill.rainBurstAt(age,JUDGEMENT_DOWNPOUR_START)) {
+                    int wave=YangJianSkill.rainBurstWave(age,JUDGEMENT_DOWNPOUR_START);thirdStage(6+wave);
+                    swordWave(target,wave,YangJianSkill.RAIN_BURST_BLADES,
+                        YangJianSkill.rainBurstWarning(24,wave),true);
+                }
                 if(age>=284 && age<=304)airHeight(4*(304-age)/20D);
-                if(age==305)thirdStage(7);
+                if(age==305)thirdStage(9);
             }
             default -> { }
         }
@@ -618,6 +673,8 @@ public final class YangJian extends Monster {
             case AXE_SUMMON -> {
                 if(age==24) {
                     entityData.set(WEAPON,1);axeFollowupRequired=true;
+                    // A fresh axe sweeps the previous field of scars before the new one charges.
+                    clearLightningScars();
                     entityData.set(AXE_TRAIL_CHARGES,YangJianSkill.AXE_TRAIL_CHARGES);
                     sparks(position().add(0,2,0),1.2,28);
                 }
@@ -629,7 +686,7 @@ public final class YangJian extends Monster {
                     moveElevated(spot);
                 }
                 if(age==28) {
-                    setNoGravity(false);leaveAxeLightningTrail(dashStart(),attackPoint());
+                    setNoGravity(false);leaveAxeLightningTrail();
                     axeBurst(attackPoint(),skill.radius(),19,13);
                 }
             }
@@ -639,7 +696,7 @@ public final class YangJian extends Monster {
             }
             case DRAW_SLASH,WHIP_SWEEP,WHIP_SPIN -> {
                 if(active>=0 && active<skill.stepActive(0)) {
-                    if(active==0)leaveAxeLightningTrail(dashStart(),dashEnd());
+                    if(active==0)leaveAxeLightningTrail();
                     double arc=Math.toRadians(telegraphAngle());
                     double from,to;
                     if(skill==YangJianSkill.WHIP_SWEEP || skill==YangJianSkill.WHIP_SPIN) {
@@ -657,8 +714,12 @@ public final class YangJian extends Monster {
             case LIGHTNING_THRUST -> {
                 if(active>=0 && active<6) {
                     if(active==0)consumeAxeLightningCharge();
-                    Vec3 from=position();dashTick(active,6,14);
-                    if(position().distanceToSqr(from)>.01)LightningTrail.create((ServerLevel)level(),this,from,position(),MyriadConfig.scaleYangJianDamage(4),48);
+                    dashTick(active,6,14);
+                    // The whole travelled lane is electrified once the thrust has finished, so the
+                    // scar covers the route the dash actually reached instead of a stack of dots.
+                    if(active==5)LightningTrail.create((ServerLevel)level(),this,LightningScar.LANE,
+                        dashStart(),position(),position(),telegraphRadius(),0,
+                        MyriadConfig.scaleYangJianDamage(4),LightningScar.PERSISTENT);
                 }
             }
             case INVISIBLE_DASH -> {
@@ -672,7 +733,7 @@ public final class YangJian extends Monster {
                     playSound(SoundEvents.TRIDENT_RETURN,1.3F,.7F);
                 }
                 if(age>=30 && age<36) {
-                    if(age==30)leaveAxeLightningTrail(dashStart(),dashEnd());
+                    if(age==30)leaveAxeLightningTrail();
                     dashTick(age-30,6,14);
                 }
             }
@@ -693,7 +754,7 @@ public final class YangJian extends Monster {
         int step=skill.stepAt(age);if(serverStep!=step)planPhaseTwoStep(skill,step,target);
         int active=age-skill.stepHit(step);if(active<0 || active>=skill.stepActive(step))return;
         boolean last=step==skill.steps()-1;
-        if(active==0)leaveAxeLightningTrail(dashStart(),dashEnd());
+        if(active==0)leaveAxeLightningTrail();
         if(skill==YangJianSkill.AXE_COMBO && last) {
             if(active==0)axeBurst(attackPoint(),telegraphRadius(),18,13);
             return;
@@ -714,20 +775,30 @@ public final class YangJian extends Monster {
         sparks(center.add(0,.4,0),radius*.65,45);((ServerLevel)level()).sendParticles(ParticleTypes.EXPLOSION,center.x,center.y+.3,center.z,4,1,.1,1,0);
         playSound(SoundEvents.TRIDENT_THUNDER.value(),1.1F,1.3F);
     }
-    /** Consume one axe-aftershock charge and leave a bounded, jumpable ground route. */
-    void leaveAxeLightningTrail(Vec3 from,Vec3 to) {
+    /**
+     * Spend one axe-aftershock charge and electrify the whole area of the move that just landed,
+     * so the scar reads as that attack's footprint instead of a single drawn line. The scar stays
+     * until the next axe summon replaces it.
+     */
+    void leaveAxeLightningTrail() {
         if(axeTrailCharges()<=0 || !(level() instanceof ServerLevel server))return;
-        Vec3 start=new Vec3(from.x,getY(),from.z),delta=to.subtract(from).multiply(1,0,1);
-        if(!Double.isFinite(delta.x) || !Double.isFinite(delta.z))return;
-        if(delta.horizontalDistanceSqr()<.0009) {
-            Vec3 facing=getLookAngle().multiply(1,0,1);
-            if(facing.horizontalDistanceSqr()<.0009)facing=new Vec3(1,0,0);
-            delta=facing.normalize().scale(3);
-        } else if(delta.horizontalDistanceSqr()>18*18)delta=delta.normalize().scale(18);
         entityData.set(AXE_TRAIL_CHARGES,YangJianSkill.consumeAxeTrailCharge(axeTrailCharges()));
-        Vec3 end=start.add(delta);
-        LightningTrail.create(server,this,start,end,MyriadConfig.scaleYangJianDamage(4),48);
-        sparks(start.add(end).scale(.5).add(0,.08,0),.35,6);
+        boolean placed=LightningTrail.create(server,this,telegraphShape(),dashStart(),dashEnd(),attackPoint(),
+            telegraphRadius(),telegraphAngle(),MyriadConfig.scaleYangJianDamage(4),LightningScar.PERSISTENT);
+        if(placed)sparks(dashStart().add(dashEnd()).scale(.5).add(0,.08,0),.35,6);
+    }
+    /** A released volley blade electrifies the lane it was launched along. */
+    void leaveSwordLightningTrail(Vec3 from,Vec3 to) {
+        if(axeTrailCharges()<=0 || !(level() instanceof ServerLevel server))return;
+        entityData.set(AXE_TRAIL_CHARGES,YangJianSkill.consumeAxeTrailCharge(axeTrailCharges()));
+        LightningTrail.create(server,this,LightningScar.LANE,from,to,to,YangJianEffects.TRAIL_RADIUS,0,
+            MyriadConfig.scaleYangJianDamage(4),LightningScar.PERSISTENT);
+    }
+    /** The next axe summon sweeps the previous field of scars away before laying a new one. */
+    private void clearLightningScars() {
+        if(level() instanceof ServerLevel server)
+            for(LightningTrail trail:server.getEntitiesOfClass(LightningTrail.class,getBoundingBox().inflate(96)))
+                if(getUUID().equals(trail.ownerId()))trail.discard();
     }
     /** Lightning thrust already creates its own route; only spend the buff stack. */
     private void consumeAxeLightningCharge() {
@@ -749,7 +820,11 @@ public final class YangJian extends Monster {
     }
     private void tickCombo(YangJianSkill skill,int age,LivingEntity target) {
         int step=skill.stepAt(age);
-        if(step!=serverStep)planComboStep(skill,step,target);
+        if(step!=serverStep) {
+            planComboStep(skill,step,target);
+            // The string converted into a lunge or a thrown spear: it no longer owns this tick.
+            if(action()!=skill.action())return;
+        }
         int active=age-skill.stepHit(step);
         if(active<0 || active>=skill.stepActive(step))return;
         if(skill==YangJianSkill.COORDINATED && step==1) { dashTick(active,skill.stepActive(step),12);return; }
@@ -768,6 +843,17 @@ public final class YangJian extends Monster {
     }
     private void planComboStep(YangJianSkill skill,int step,LivingEntity target) {
         serverStep=step;hitThisStep.clear();
+        // A follow-up step only exists while the target is still in reach. If they broke away the
+        // string converts into a closing thrust, or a thrown spear at long range, instead of
+        // swinging at empty air; the abandoned string still pays its own cooldown.
+        if(step>0 && target!=null && skill.convertsWhenTargetEscapes() && action()==skill.action()) {
+            YangJianSkill followup=YangJianSkill.comboFollowup(distanceTo(target));
+            if(followup!=null) {
+                cooldowns[skill.action()]=skill.cooldown();
+                begin(followup,target);
+                return;
+            }
+        }
         if(skill==YangJianSkill.COORDINATED && step==1) { planDash(target,skill.stepWindup(step),step,13);return; }
         Vec3 direction=aim(target).subtract(position()).multiply(1,0,1).normalize();
         if(distanceTo(target)>3.1)moveSafely(direction.scale(Math.min(.85,distanceTo(target)-3.1)));
@@ -860,6 +946,8 @@ public final class YangJian extends Monster {
         Vec3 direction=point.subtract(position());
         if(direction.horizontalDistanceSqr()<1E-6)return;
         float yaw=(float)(Math.atan2(direction.z,direction.x)*Mth.RAD_TO_DEG)-90;
+        // Keep the angle continuous across north so P3 always takes the short turn.
+        if(phase()==3)yaw=getYRot()+Mth.wrapDegrees(yaw-getYRot());
         setYRot(yaw);yBodyRot=yaw;yHeadRot=yaw;
     }
     private void moveSafely(Vec3 movement) {
@@ -1086,10 +1174,11 @@ public final class YangJian extends Monster {
             playSound(SoundEvents.GENERIC_EXPLODE.value(),2,.65F);
             ((ServerLevel)level()).sendParticles(ParticleTypes.CLOUD,center.x,center.y+.12,center.z,60,2.8,.08,2.8,.045);
         }
-        if(age==YangJianTransition.WAVE_START) {
+        if(age==YangJianTransition.EARLY_WAVE_START || age==YangJianTransition.WAVE_START) {
+            // Each crest owns its own approach window, so one player can be caught by both.
             hitThisStep.clear();transitionDistances.clear();playSound(SoundEvents.ELDER_GUARDIAN_CURSE,1.2F,.65F);
         }
-        if(age>=YangJianTransition.WAVE_START && age<=YangJianTransition.WAVE_END)
+        if(YangJianTransition.inWave(age))
             transitionGroundHit(center,age,true);
     }
     private void transitionGroundHit(Vec3 center,int age,boolean wave) {
@@ -1150,6 +1239,7 @@ public final class YangJian extends Monster {
     }
     private void clearThirdHazards() { clearThirdHazards(false); }
     private void clearThirdHazards(boolean includePersistent) {
+        entityData.set(BEAM,-1);entityData.set(CLONE_BEAM,-1);
         if(level() instanceof ServerLevel server)
             for(YangJianHazard h:server.getEntitiesOfClass(YangJianHazard.class,getBoundingBox().inflate(100)))
                 if(getUUID().equals(h.ownerId()) && (includePersistent || !h.persistent()))h.discard();

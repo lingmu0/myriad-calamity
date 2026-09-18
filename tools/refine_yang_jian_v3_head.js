@@ -164,10 +164,16 @@
     B('outer_rear_buckle_'+s,'hair_back_03',[s*5.07,35.20,6.155],[.76,.43,.23],'goldDark');
   }
   const headScale=.85, chinBase=45.685;
+  // Approved second-pass shrink: a uniform .9 scale about the neck joint, applied
+  // on top of the .85 pass above. Keep headPivot equal to the head bone origin
+  // [0,44.40025,-1.2] of the approved model, and keep the head-local eye anchor and
+  // third-eye glow constants in YangJianModel.java at the same .9 ratio.
+  const headShrink=.9, headPivot=[0,44.40025,-1.2];
   const resizeHead=vector=>{
     vector[0]*=headScale;
     vector[1]=chinBase+(vector[1]-.95-chinBase)*headScale-1;
     vector[2]*=headScale;
+    for(let i=0;i<3;i++)vector[i]=headPivot[i]+(vector[i]-headPivot[i])*headShrink;
   };
   for(const p of parts)if(targets.has(p.bone)){
     resizeHead(p.from);resizeHead(p.to);resizeHead(p.origin);

@@ -50,7 +50,7 @@ def append_p3(pose,finish,attack_pose):
     frames += [frame(117,flight),frame(138,calm),frame(150,calm)]
     frames[-2]=frame(138,calm);frames[-1]=frame(140,calm)
     finish('myriad_swords',frames,140,metadata={'cast_ticks':[26,56,86],'impact_ticks':[48,78,108]})
-    for name,times,total in [('sword_rain',[20,40,60,80],120),('red_thunder',[14,28,42,56],90)]:
+    for name,times,total in [('sword_rain',[20,36,52,68,84,100,116,132],172),('red_thunder',[14,28,42,56],90)]:
         frames=[frame(0,calm)]
         for i,t in enumerate(times):
             load=copy.deepcopy(proclaim);hit=copy.deepcopy(cast)
@@ -58,6 +58,8 @@ def append_p3(pose,finish,attack_pose):
             frames += [frame(max(1,t-7),load),frame(t,hit,-.25),frame(t+5,calm)]
         frames.append(frame(total,calm));finish(name,frames,total,metadata={'cast_ticks':times})
     for name,arc in [('divine_sweep',170),('divine_spin',360)]:
+        # Clockwise, like every other rotating attack: the mirrored model authors it as increasing
+        # yaw, and the chain it drags is drawn in world space the opposite way.
         ready=attack_pose('horizontal',True);ready['root']=[0,-arc*.5,0]
         frames=[frame(0,calm),frame(12,ready,-.6),frame(20,ready,-.6)]
         for i in range(1,11):
@@ -69,13 +71,27 @@ def append_p3(pose,finish,attack_pose):
     finish('aerial_combo',[frame(0,calm),frame(16,flight),frame(20,flying(proclaim)),frame(24,flying(cast)),
         frame(41,flight),frame(54,flying(beam_focus)),frame(60,flying(beam_focus)),frame(99,flying(beam_focus)),
         frame(108,load),frame(122,load),frame(130,impact,-1),frame(138,proclaim),frame(140,cast),
-        frame(153,calm),frame(180,calm)],180,metadata={'cast_ticks':[24,60,104,140],'impact_ticks':[42,76,130,162]})
-    finish('divine_judgement',[frame(0,calm),frame(20,flight),frame(35,flying(proclaim)),frame(43,flying(proclaim)),
-        frame(50,flying(cast)),frame(77,flight),frame(88,load),frame(108,load),frame(116,impact,-1),
+        frame(153,calm),frame(180,calm)],180,metadata={'cast_ticks':[24,30,36,60,104,140],
+        'impact_ticks':[42,44,46,76,130,162]})
+    judgement_cast=flying(cast)
+    frames=[frame(0,calm),frame(20,flight),frame(35,flying(proclaim)),frame(43,flying(proclaim))]
+    # Both ultimate sword segments are dense bursts now, so the boss repeats the cast gesture for
+    # each of the three close waves instead of holding one pose across a single wide spread.
+    for index,t in enumerate((50,56,62)):
+        wave=copy.deepcopy(judgement_cast);wave['chest'][1]=(-1 if index%2 else 1)*10
+        wave['head'][1]=-wave['chest'][1]
+        frames.append(frame(t,wave))
+    frames += [frame(77,flight),frame(88,load),frame(108,load),frame(116,impact,-1),
         frame(124,flight),frame(130,flying(beam_focus)),frame(184,flying(beam_focus)),frame(214,flight),
-        frame(224,flying(proclaim)),frame(228,flying(cast)),frame(254,flying(proclaim)),frame(264,flying(cast)),
-        frame(282,flight),frame(304,calm),frame(328,calm)],328,
-        metadata={'cast_ticks':[50,88,130,184,228,264],'impact_ticks':[76,116,154,204,252,288],'landing_tick':304})
+        frame(224,flying(proclaim)),frame(228,flying(cast)),frame(254,flying(proclaim))]
+    for index,t in enumerate((264,270,276)):
+        wave=copy.deepcopy(judgement_cast);wave['chest'][1]=(-1 if index%2 else 1)*10
+        wave['head'][1]=-wave['chest'][1]
+        frames.append(frame(t,wave))
+    frames += [frame(282,flight),frame(304,calm),frame(328,calm)]
+    finish('divine_judgement',frames,328,
+        metadata={'cast_ticks':[50,56,62,88,130,184,228,264,270,276],
+        'impact_ticks':[76,78,80,116,154,204,252,288,290,292],'landing_tick':304})
     kneel=pose(hips=[14,0,0],waist=[9,0,0],chest=[14,0,0],head=[18,0,0],
         left_thigh=[46,0,-8],right_thigh=[-46,0,7],left_shin=[-66,0,0],right_shin=[-58,0,0],
         left_arm=[24,0,19],right_arm=[29,0,-14],right_forearm=[-12,0,9])

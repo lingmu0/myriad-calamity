@@ -33,7 +33,7 @@ public enum YangJianSkill {
     SWEEP_BEAM(25,180,new int[]{24},112,0,22,.65F),
     TRACKING_BEAM(26,165,new int[]{22},50,0,22,.55F),
     MYRIAD_SWORDS(27,220,new int[]{24},90,0,26,2.1F),
-    SWORD_RAIN(28,185,new int[]{18},80,0,22,2.2F),
+    SWORD_RAIN(28,185,new int[]{18},132,0,22,2.2F),
     RED_THUNDER(29,150,new int[]{14},56,0,20,2.8F),
     DIVINE_SWEEP(30,85,new int[]{20},10,0,20,12),
     AERIAL_COMBO(31,340,new int[]{24},126,0,30,4.8F),
@@ -44,6 +44,28 @@ public enum YangJianSkill {
     private final float radius;
     /** Empty defense bars stay exposed for two real minutes before recharging. */
     public static final int AXE_TRAIL_CHARGES=3,GUARD_REGEN_DELAY=20*60*2;
+    /** The ground sword rain falls continuously instead of in four discrete waves. */
+    public static final int SWORD_RAIN_FIRST=20,SWORD_RAIN_INTERVAL=4,SWORD_RAIN_PER_DROP=2,SWORD_RAIN_WARNING=20;
+    /** How many separate drops the rain releases over its active window. */
+    public static int swordRainDrops(int active) {
+        return active<SWORD_RAIN_FIRST?0:(active-SWORD_RAIN_FIRST)/SWORD_RAIN_INTERVAL+1;
+    }
+    /** True on the exact ticks the ground rain releases another pair of blades. */
+    public static boolean swordRainDropsAt(int age,int active) {
+        return age>=SWORD_RAIN_FIRST && age<=active && (age-SWORD_RAIN_FIRST)%SWORD_RAIN_INTERVAL==0;
+    }
+    /** A dense sword-rain burst: several close waves instead of one sparse spread. */
+    public static final int RAIN_BURST_WAVES=3,RAIN_BURST_SPACING=6,RAIN_BURST_BLADES=8,RAIN_BURST_WARNING_STEP=4;
+    /** True on the exact ticks a burst opens another one of its waves. */
+    public static boolean rainBurstAt(int age,int start) {
+        return age>=start && age<start+RAIN_BURST_WAVES*RAIN_BURST_SPACING
+            && (age-start)%RAIN_BURST_SPACING==0;
+    }
+    public static int rainBurstWave(int age,int start) { return (age-start)/RAIN_BURST_SPACING; }
+    /** Each later wave of a burst warns for less time, so the whole burst lands as one downpour. */
+    public static int rainBurstWarning(int firstWarning,int wave) {
+        return firstWarning-RAIN_BURST_WARNING_STEP*Math.max(0,wave);
+    }
     YangJianSkill(int action,int cooldown,int[] windups,int active,int gap,int recovery,float radius) {
         this.action=action;this.cooldown=cooldown;this.windups=windups;this.active=active;
         this.gap=gap;this.recovery=recovery;this.radius=radius;
@@ -77,6 +99,18 @@ public enum YangJianSkill {
     public int activeEnd() { return stepHit(steps()-1)+active; }
     public float radius() { return radius; }
     public boolean meleeCombo() { return this==COMBO || this==FOUR_COMBO || this==SIX_COMBO; }
+    /** P1 melee strings only keep swinging while the target stays inside this reach. */
+    public static final double COMBO_REACH=5.5,COMBO_THROW_RANGE=12;
+    /**
+     * The follow-up a long P1 string becomes once the target broke away: a closing thrust at
+     * medium range, a thrown spear beyond it, and none at all while the target is still close.
+     */
+    public static YangJianSkill comboFollowup(double distance) {
+        if(!Double.isFinite(distance) || distance<=COMBO_REACH)return null;
+        return distance>COMBO_THROW_RANGE?THROW:THRUST;
+    }
+    /** Only the long strings convert; the basic three-hit combo always finishes its beats. */
+    public boolean convertsWhenTargetEscapes() { return this==FOUR_COMBO || this==SIX_COMBO; }
     public boolean phaseTwoCombo() { return this==AXE_COMBO || this==DELAYED_COMBO; }
     public static final int PHASE_TWO_LINK_RECOVERY=8,PHASE_TWO_FINAL_RECOVERY=28,PHASE_THREE_FINAL_RECOVERY=28;
     public static boolean canChain(int count,int limit) { return count>=1 && count<Math.clamp(limit,2,3); }
@@ -119,6 +153,15 @@ public enum YangJianSkill {
      * while a standing player still intersects it with their upper body.
      */
     public static final double DIVINE_SWEEP_HEIGHT=2.0,DIVINE_SWEEP_HALF_BAND=.62;
+    /** The divine sweep stretches the spear along its own axis instead of trailing a bolt. */
+    public static final float DIVINE_SWEEP_WEAPON_LENGTH=3F;
+    public static float divineSweepWeaponLength(float age) {
+        if(!Float.isFinite(age))return 1F;
+        float windup=DIVINE_SWEEP.windups[0],active=DIVINE_SWEEP.active;
+        float grow=Math.clamp(age/Math.max(1,windup),0,1);
+        float fade=1F-Math.clamp((age-(windup+active+4))/10F,0,1);
+        return 1F+(DIVINE_SWEEP_WEAPON_LENGTH-1F)*Math.min(grow,fade);
+    }
     public static boolean divineSweepTouches(double feet,double head,double ground) {
         if(!Double.isFinite(feet) || !Double.isFinite(head) || !Double.isFinite(ground))return false;
         double lower=ground+DIVINE_SWEEP_HEIGHT-DIVINE_SWEEP_HALF_BAND;
@@ -126,11 +169,12 @@ public enum YangJianSkill {
         return head>=lower && feet<=upper;
     }
     /** Relative arc angle used by the server hitbox and client chain renderer.
-     *  The runtime model's mirror reverses the authored sweep, so the visible
-     *  motion travels from +half-arc back toward -half-arc. */
+     *  The chain is drawn under the mirrored model transform, which reverses the authored sweep,
+     *  so the visible links travel from -half-arc toward +half-arc: the clockwise turn every
+     *  rotating attack shares. The damage arc reads the same value, so hits stay on the links. */
     public static double sweepRelative(double arc,double progress) {
         if(!Double.isFinite(arc) || !Double.isFinite(progress))return 0;
-        return arc*.5-arc*Math.clamp(progress,0,1);
+        return -arc*.5+arc*Math.clamp(progress,0,1);
     }
     public static double sweepAngle(double heading,double arc,double progress) {
         return heading+sweepRelative(arc,progress);
@@ -171,9 +215,13 @@ public enum YangJianSkill {
             case LIGHTNING_THRUST -> distance>=5?(usingItem?60:distance>12?43:25):0;
             case INVISIBLE_DASH -> distance>=3 && distance<=18?(pressure?42:17):0;
             case DELAYED_COMBO -> distance<=7?(pressure?45:31):0;
+            // P3 keeps only the thin fixed shot. The thick sustained beam (TRACKING_BEAM) is
+            // the one that never sweeps: it only creeps toward the target at 0.7 degrees per
+            // tick, so it reads as a stationary pillar of light, and it is out of the pool.
+            // The enum, its timing and its animation stay so the pool can be re-enabled and
+            // older saves keep mapping, but nothing selects it.
             case EYE_BEAM -> distance>=4?(usingItem?50:28):9;
             case SWEEP_BEAM -> distance>=6?30:13;
-            case TRACKING_BEAM -> distance>=8?(distance>16?48:31):8;
             case MYRIAD_SWORDS -> distance>=7?(distance>14?39:29):16;
             case SWORD_RAIN -> distance>=3?25:12;
             case RED_THUNDER -> distance>=4?30:18;

@@ -30,7 +30,9 @@ public final class CombatMathTest {
         check(CombatMath.finaleCasualty(null,gold,silver).equals(gold),"No player history falls back to current hitbox");
         check(CombatMath.finaleCasualty(new UUID(0,3),gold,silver).equals(gold),"A stale UUID cannot choose another encounter");
         check(CombatMath.windup(1)>CombatMath.windup(2) && CombatMath.windup(2)>CombatMath.windup(3),"Windups accelerate");
-        check(CombatMath.windup(2)==24 && CombatMath.windup(3)==18,"Phase two and three windups stay on the shortened timings");
+        check(CombatMath.windup(2)==18 && CombatMath.windup(3)==15,"Phase two and three windups stay on the shortened timings");
+        check(CombatMath.windup(1)==28 && CombatMath.windup(4)==35,
+            "Every phase, including the solo finale, telegraphs for less time than before");
         check(CombatMath.windup(4)>CombatMath.windup(1),"Solo attacks are slower");
         check(CombatMath.DASH_TRAVEL_TICKS==12 && CombatMath.DASH_ACTIVE_TICKS==28,"Dashes use the shortened travel and recovery window");
         check(near(CombatMath.segmentDistanceSquared(5,0,0,0,10,0),0),"Dash detects a player between tick positions");

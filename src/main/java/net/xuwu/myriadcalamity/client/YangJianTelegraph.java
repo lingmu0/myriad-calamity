@@ -13,6 +13,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.xuwu.myriadcalamity.MyriadCalamity;
+import net.xuwu.myriadcalamity.config.MyriadConfig;
 import net.xuwu.myriadcalamity.entity.YangJian;
 import org.joml.Matrix4f;
 
@@ -38,9 +39,13 @@ public final class YangJianTelegraph {
 
     private static void render(YangJian boss,float partial,PoseStack pose,MultiBufferSource buffers,Vec3 camera) {
         if(boss.action()==YangJian.TRANSITION) {
+            // The arena-wide slam is the one warning that survives with the indicators off:
+            // it cannot be read from the boss's own motion while he is airborne.
             YangJianTransitionEffects.ground(boss,partial,pose,buffers,camera);
             return;
         }
+        // Every other ground route/shape is opt-in through the server config.
+        if(!MyriadConfig.showYangJianAttackIndicators())return;
         // The PLAN tag carries action, stage, timestamps and every point in one synced update.
         // Testing the timestamp again with partial ticks removes the warning exactly at release.
         if(!boss.warningVisible())return;

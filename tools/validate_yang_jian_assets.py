@@ -19,13 +19,13 @@ def main():
     png=(ASSETS/'textures/entity/yang_jian.png').read_bytes()
     assert png[:8]==b'\x89PNG\r\n\x1a\n'
     assert list(struct.unpack('>II',png[16:24]))==mesh['texture_size']==[2048,2048]
-    names=set();faces=0
+    names=set();faces=0;bones_by_name={}
 
     def walk(nodes):
         nonlocal faces
         for b in nodes:
             assert b['name'] not in names
-            names.add(b['name'])
+            names.add(b['name']);bones_by_name[b['name']]=b
             assert all(math.isfinite(v) for v in b['pivot']+b['rotation'])
             for f in b['faces']:
                 faces+=1
@@ -36,6 +36,14 @@ def main():
             walk(b['children'])
     walk(mesh['bones'])
     assert names=={g['name'] for g in model['groups']}
+    # The upper arms are held off the ribs by a mirrored rest abduction, in the mesh and in the
+    # source project alike, so bent elbows stop clipping into the cuirass.
+    for side,sign in (('left',-1),('right',1)):
+        arm=bones_by_name[side+'_arm']
+        source=next(g for g in model['groups'] if g['name']==side+'_arm')
+        assert arm['rotation'][0]==0 and arm['rotation'][1]==0,'Arm abduction only rolls the shoulder out'
+        assert abs(arm['rotation'][2])>=8 and arm['rotation'][2]*sign<0,'Both upper arms abduct away from the body'
+        assert abs(arm['rotation'][2]+source['rotation'][2])<1e-6,'Mesh and project agree on the abduction'
     assert faces==manifest['rendered_faces']==len(model['elements'])*6
     runtime=json.loads((ASSETS/'animations/yang_jian.json').read_text('utf8'))['clips']
     authored=json.loads((ROOT/'modeling/yang_jian-animation-source.json').read_text('utf8'))['clips']
@@ -68,21 +76,49 @@ def main():
         for bone in ('hips','waist','chest','left_thigh','right_thigh','left_shin','right_shin','left_foot','right_foot'):
             keys=clip['bones'][bone]['rotation']
             assert max(k[1] for k in keys)-min(k[1] for k in keys)>1,(name,bone,'Must articulate the whole step')
+        stride=max(abs(k[1]) for k in clip['bones']['left_thigh']['rotation'])
+        lean=max(abs(k[1]) for k in clip['bones']['chest']['rotation'])
+        assert stride>=50,(name,'The advancing step must show a long stride')
+        assert lean>=12,(name,'The advancing step must lean the torso into the motion')
     transition=authored['transition']
     transition_java=(ROOT/'src/main/java/net/xuwu/myriadcalamity/entity/YangJianTransition.java').read_text('utf8')
     transition_ticks={name:int(re.search(rf'\b{name}\s*=\s*(\d+)',transition_java)[1]) for name in
-        ('ASCEND_END','SUMMON_START','SUMMON_END','SWEEP_START','SWEEP_END','IMPACT','WAVE_START','WAVE_END','DURATION')}
+        ('ASCEND_END','SUMMON_START','SUMMON_END','SWEEP_START','SWEEP_END','IMPACT','EARLY_WAVE_START',
+         'EARLY_WAVE_END','WAVE_START','WAVE_END','DURATION')}
     assert transition['length']*20==transition_ticks['DURATION']==144,'Transition duration must match the server'
     assert transition['timing']=={'ascent_ticks':[0,transition_ticks['ASCEND_END']],
         'summon_ticks':[transition_ticks['SUMMON_START'],transition_ticks['SUMMON_END']],
         'sweep_ticks':[transition_ticks['SWEEP_START'],transition_ticks['SWEEP_END']],
-        'sweep_arc_degrees':180,'hit_ticks':[transition_ticks['IMPACT']],
+        'sweep_arc_degrees':360,'hit_ticks':[transition_ticks['IMPACT']],
+        'early_shockwave_ticks':[transition_ticks['EARLY_WAVE_START'],transition_ticks['EARLY_WAVE_END']],
         'shockwave_ticks':[transition_ticks['WAVE_START'],transition_ticks['WAVE_END']],
         'recovery_end_tick':transition_ticks['DURATION'],'server_owns_flight':True}
     transition_root=runtime['transition']['bones']['root']
     assert all(abs(k[2])<2 and k[1]==0 and k[3]==0 for k in transition_root['position']), 'Do not animate the server flight twice'
+    # Every rotating attack turns clockwise. The model is mirrored, so an animated clockwise turn
+    # is authored as increasing yaw, while the world-space laser rake advances the other way.
+    def authored_yaws(name,bone='root'):
+        return [(round(k['time']*20),k['values'][1]) for k in authored[name]['bones'][bone]['rotation']]
+    for name in ('combo','four_combo','six_combo'):
+        yaws=[value for _,value in sorted(authored_yaws(name))]
+        assert max(yaws)>=360,(name,'The combo spin must complete a whole clockwise turn')
+        assert all(later>=earlier for earlier,later in zip(yaws,yaws[1:])),(name,'The combo spin must never reverse')
+    for name,arc in (('divine_sweep',170),('divine_spin',360)):
+        sweep=[value for tick,value in sorted(authored_yaws(name)) if 20<=tick<=30]
+        assert sweep and all(later>=earlier for earlier,later in zip(sweep,sweep[1:])),(name,'The divine sweep must advance clockwise')
+        assert max(sweep)>=arc*.5-1e-6,(name,'The divine sweep must reach the clockwise end of its arc')
+        end=[value for tick,value in sorted(authored_yaws(name)) if tick==50]
+        assert end==([360] if arc==360 else [0]),(name,'A full divine spin ends facing forward on a whole clockwise turn')
+    beam_head=[value for tick,value in sorted(authored_yaws('sweep_beam','head')) if 24<tick<56]
+    assert beam_head and all(later>=earlier for earlier,later in zip(beam_head,beam_head[1:])), \
+        'The sweeping laser head must follow the clockwise rake of its own pass'
     yaw={round(k['time']*20):k['values'][1] for k in transition['bones']['root']['rotation']}
-    assert yaw[40]==-90 and yaw[64]==90 and yaw[72]==0,'Axe must sweep a half-circle before the forward slam'
+    assert yaw[40]==0 and yaw[64]==288 and yaw[72]==360,'The axe must turn one complete clockwise circle'
+    turn=[value for tick,value in sorted(yaw.items()) if 40<=tick<=72]
+    assert all(later>=earlier for earlier,later in zip(turn,turn[1:])),'The full turn must never reverse'
+    assert transition_ticks['IMPACT']<transition_ticks['EARLY_WAVE_START']<transition_ticks['EARLY_WAVE_END']
+    assert transition_ticks['EARLY_WAVE_END']<transition_ticks['WAVE_START']<transition_ticks['WAVE_END'], \
+        'The two shockwaves must be separate crests with a landing gap between them'
     for bone in ('hips','waist','chest','right_arm','right_forearm','right_hand','left_thigh','right_shin','hair_back_03','rear_sash_tip'):
         keys=runtime['transition']['bones'][bone]['rotation']
         assert any(max(k[axis] for k in keys)-min(k[axis] for k in keys)>2 for axis in (1,2,3)),(bone,'Transition joint is static')
@@ -116,8 +152,8 @@ def main():
         if 'hit_ticks' in meta:assert meta['hit_ticks']==[w] and meta['active_ticks']==active,(name,'P3 hit frame')
     assert runtime['divine_spin']['length']==runtime['divine_sweep']['length']
     assert authored['myriad_swords']['timing']['impact_ticks']==[48,78,108]
-    assert authored['aerial_combo']['timing']['impact_ticks']==[42,76,130,162]
-    assert authored['divine_judgement']['timing']['impact_ticks']==[76,116,154,204,252,288]
+    assert authored['aerial_combo']['timing']['impact_ticks']==[42,44,46,76,130,162]
+    assert authored['divine_judgement']['timing']['impact_ticks']==[76,78,80,116,154,204,252,288,290,292]
     assert weapons['texture']=='textures/entity/yang_jian.png' and weapons['texture_size']==[2048,2048]
     assert set(weapons['weapons'])=={'axe','sword','whip'}
     for name,weapon in weapons['weapons'].items():

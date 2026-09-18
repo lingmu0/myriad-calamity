@@ -20,6 +20,8 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.entity.YangJian;
+import net.xuwu.myriadcalamity.entity.YangJianHazard;
+import net.xuwu.myriadcalamity.entity.YangJianSkill;
 import net.xuwu.myriadcalamity.entity.YangJianTransition;
 import org.joml.Quaternionf;
 import org.joml.Matrix4f;
@@ -40,6 +42,7 @@ public final class YangJianModel extends EntityModel<YangJian> {
     private final Map<String,Bone> bones=new HashMap<>();
     private final Map<String,Clip> clips=new HashMap<>();
     private final List<Bone> weaponPath=new ArrayList<>();
+    private final List<Bone> headPath=new ArrayList<>();
     private final Map<YangJian,AnimationPlayback> playback=new WeakHashMap<>();
     private final YangJianWeapons weapons;
     private Matrix4f heldWeaponTransform=new Matrix4f();
@@ -48,12 +51,16 @@ public final class YangJianModel extends EntityModel<YangJian> {
     private boolean veiled;
     private int selectedWeapon;
     private float weaponGrowth=1;
+    /** Length multiplier applied to the held spear's own axis (P3 divine sweep). */
+    private float weaponLength=1;
+    private static final float EYE_CHARGE_GLOW=2.6F;
 
     public YangJianModel(ResourceManager resources) {
         weapons=new YangJianWeapons(resources);
         for(JsonElement root:read(resources,"mesh/yang_jian.json").getAsJsonArray("bones"))
             roots.add(bone(root.getAsJsonObject()));
         for(Bone root:roots)if(findWeaponPath(root))break;
+        for(Bone root:roots)if(findPath(root,"head",headPath))break;
         read(resources,"animations/yang_jian.json").getAsJsonObject("clips").entrySet().forEach(entry->{
             JsonObject data=entry.getValue().getAsJsonObject();
             Map<String,Map<String,float[][]>> channels=new HashMap<>();
@@ -176,14 +183,14 @@ public final class YangJianModel extends EntityModel<YangJian> {
             float[] rotation=AnimationTrack.sample(channels.get("rotation"),time,0);
             // In attacks the animation supplies counter-rotation; idle adds restrained target tracking.
             if(b.name.equals("head") && action==YangJian.IDLE) {
-                float yawLimit=boss.isApproaching()?12:25,pitchLimit=boss.isApproaching()?8:14;
+                float yawLimit=boss.phase()==3?55:boss.isApproaching()?12:25,pitchLimit=boss.phase()==3?45:boss.isApproaching()?8:14;
                 rotation[1]+=Mth.clamp(headYaw,-yawLimit,yawLimit);
                 rotation[0]+=Mth.clamp(headPitch,-pitchLimit,pitchLimit);
             }
             sampled.put(b.name,new AnimationPlayback.Pose(AnimationTrack.sample(channels.get("position"),time,0),
                 rotation,AnimationTrack.sample(channels.get("scale"),time,1)));
         }
-        float blend=name.endsWith("windup")?2:name.contains("idle")?4:1;
+        float blend=boss.phase()==3?1:name.endsWith("windup")?2:name.contains("idle")?4:1;
         // No blend is applied at each hit: all segments of a combination are one uninterrupted clip.
         Map<String,AnimationPlayback.Pose> result=playback.computeIfAbsent(boss,ignored->new AnimationPlayback())
             .apply(action+":"+name,age,blend,sampled);
@@ -193,7 +200,28 @@ public final class YangJianModel extends EntityModel<YangJian> {
         }
         weaponHidden=boss.weaponThrown();
         eyeGlow=boss.phase()==3?1:action==YangJian.THIRD_EYE_OPEN?Mth.clamp((elapsed-20)/35,0,1):0;
+        YangJianHazard beam=boss.currentBeam();
+        float bodyYaw=Mth.rotLerp(partial,boss.yBodyRotO,boss.yBodyRot);
+        if(beam!=null) {
+            aimHead(bodyYaw,beam.visualDirection(partial));
+            beam.setVisualOrigin(new Vec3(Mth.lerp(partial,boss.xOld,boss.getX()),Mth.lerp(partial,boss.yOld,boss.getY()),
+                Mth.lerp(partial,boss.zOld,boss.getZ())).add(eyePoint(bodyYaw)));
+            eyeGlow=beam.warning(partial)?1+2*Mth.clamp(beam.age(partial)/Math.max(1,beam.windup()),0,1):2;
+        } else if(boss.phase()==3 && action!=YangJian.DIVINE_SWEEP && !boss.isTransitioning()) {
+            // Track through aerial casts and recovery instead of inheriting a
+            // frozen head pose from a long composite animation.
+            float lookYaw=Mth.rotLerp(partial,boss.yHeadRotO,boss.yHeadRot)*Mth.DEG_TO_RAD;
+            float pitch=Mth.lerp(partial,boss.xRotO,boss.getXRot())*Mth.DEG_TO_RAD;
+            aimHead(bodyYaw,new Vec3(-Math.sin(lookYaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(lookYaw)*Math.cos(pitch)));
+        }
         selectedWeapon=Mth.clamp(boss.weapon(),0,3);
+        // Every P3 laser charges the third eye for its whole windup, including the frames
+        // between clone passes and composite casts whose beam hazard is swapped mid-action.
+        float laserCharge=laserWindupCharge(action,elapsed);
+        if(laserCharge>0)eyeGlow=Math.max(eyeGlow,1F+EYE_CHARGE_GLOW*laserCharge);
+        // The divine sweep stretches the spear itself along its own axis instead of
+        // trailing a bolt, so the visible weapon covers the swept hitbox.
+        weaponLength=action==YangJian.DIVINE_SWEEP?YangJianSkill.divineSweepWeaponLength(elapsed):1F;
         veiled=boss.isInvisible() && action==YangJian.INVISIBLE_DASH;
         weaponGrowth=action==YangJian.AXE_SUMMON && selectedWeapon==1?Mth.clamp((elapsed-24)/5F,.1F,1):1;
         if(action==YangJian.TRANSITION) {
@@ -224,6 +252,60 @@ public final class YangJianModel extends EntityModel<YangJian> {
     /** Converts the animated handle endpoint into an entity-relative world vector. */
     public Vec3 heldWeaponPoint(float bodyYaw,float x,float y,float z) {
         return weaponPoint(heldWeaponTransform,bodyYaw,x,y,z,weaponGrowth);
+    }
+
+    /** Exact animated forehead point in entity-relative world coordinates. */
+    public Vec3 eyePoint(float bodyYaw) {
+        Matrix4f transform=new Matrix4f();
+        for(Bone b:headPath)appendBone(transform,b);
+        // Head-local anchor, scaled with the .9 uniform head shrink about the neck joint.
+        return weaponPoint(transform,bodyYaw,0,-5.7105F/16F,-3.591F/16F,1);
+    }
+
+    private void aimHead(float bodyYaw,Vec3 direction) {
+        if(headPath.isEmpty())return;
+        Matrix4f parent=new Matrix4f().rotateY((180-bodyYaw)*Mth.DEG_TO_RAD)
+            .scale(-YangJianRenderer.MODEL_SCALE,-YangJianRenderer.MODEL_SCALE,YangJianRenderer.MODEL_SCALE);
+        for(int i=0;i<headPath.size()-1;i++)appendBone(parent,headPath.get(i));
+        Bone head=headPath.getLast();
+        float[] angles=YangJianBeamAim.rotation(parent,direction.x,direction.y,direction.z);
+        head.rotation=new float[]{angles[0]-head.baseRotation[0],angles[1]-head.baseRotation[1],angles[2]-head.baseRotation[2]};
+    }
+
+    /** Each apparition has its own ray and local head pose; restore the body rig after drawing it. */
+    public void renderBeamClone(PoseStack pose,VertexConsumer buffer,int light,int overlay,int color,
+                               float bodyYaw,YangJianHazard beam,float partial) {
+        Bone head=bones.get("head");float[] original=head.rotation;float originalGlow=eyeGlow;
+        try {
+            if(beam!=null) {
+                aimHead(bodyYaw,beam.visualDirection(partial));eyeGlow=2;
+                // Clone ray origin is its floor position plus the common eye anchor.
+                beam.setVisualOrigin(beam.start().add(0,-2.98,0).add(eyePoint(bodyYaw)));
+            }
+            renderToBuffer(pose,buffer,light,overlay,color);
+        } finally { head.rotation=original;eyeGlow=originalGlow; }
+    }
+
+    private static void appendBone(Matrix4f transform,Bone b) {
+        transform.translate((b.pivot[0]+b.position[0])/16F,(b.pivot[1]+b.position[1])/16F,(b.pivot[2]+b.position[2])/16F)
+            .rotate(new Quaternionf().rotationZYX((b.baseRotation[2]+b.rotation[2])*Mth.DEG_TO_RAD,
+                (b.baseRotation[1]+b.rotation[1])*Mth.DEG_TO_RAD,(b.baseRotation[0]+b.rotation[0])*Mth.DEG_TO_RAD))
+            .scale(b.scale[0],b.scale[1],b.scale[2]);
+    }
+
+    /** Charge of a pure laser windup, or 0 when the action does not charge the third eye. */
+    private static float laserWindupCharge(int action,float elapsed) {
+        YangJianSkill skill=YangJianSkill.forAction(action);
+        if(skill!=YangJianSkill.EYE_BEAM && skill!=YangJianSkill.SWEEP_BEAM && skill!=YangJianSkill.TRACKING_BEAM)
+            return 0;
+        return Mth.clamp(elapsed/Math.max(1,skill.stepWindup(0)),0,1);
+    }
+
+    private boolean findPath(Bone bone,String name,List<Bone> path) {
+        path.add(bone);
+        if(bone.name.equals(name))return true;
+        for(Bone child:bone.children)if(findPath(child,name,path))return true;
+        path.removeLast();return false;
     }
 
     /** Samples the authored axe pose so the lightning trail follows the actual blade. */
@@ -280,6 +362,8 @@ public final class YangJianModel extends EntityModel<YangJian> {
             pose.mulPose(new Quaternionf().rotationZYX((b.baseRotation[2]+b.rotation[2])*Mth.DEG_TO_RAD,
                 (b.baseRotation[1]+b.rotation[1])*Mth.DEG_TO_RAD,(b.baseRotation[0]+b.rotation[0])*Mth.DEG_TO_RAD));
             pose.scale(b.scale[0],b.scale[1],b.scale[2]);
+            // The spear's own length axis is local -Y, so the sweep stretches it out to reach.
+            if(b.name.equals("weapon") && weaponLength!=1F)pose.scale(1F,weaponLength,1F);
         }
         if(!isolatedWeapon && b.name.equals("weapon") && selectedWeapon>0) {
             pose.scale(weaponGrowth,weaponGrowth,weaponGrowth);
@@ -291,10 +375,11 @@ public final class YangJianModel extends EntityModel<YangJian> {
                     .setNormal(pose.last(),face.normal()[0],face.normal()[1],face.normal()[2]);
         }
         if(b.name.equals("head") && eyeGlow>0 && !isolatedWeapon) {
-            float half=.20F*eyeGlow,z=-3.985F,top=-6.68F,bottom=-6.01F;
+            // Head-local third-eye glow, scaled with the .9 uniform head shrink.
+            float half=.18F*eyeGlow,z=-3.5865F,top=-6.012F,bottom=-5.409F;
             float[][] corners={{-half,top},{half,top},{half,bottom},{-half,bottom}};
             for(int i=0;i<4;i++)buffer.addVertex(pose.last(),corners[i][0]/16F,corners[i][1]/16F,z/16F)
-                .setColor(0xFFFFFFFF).setUv((i==0 || i==3?1127F:1129F)/2048F,(i<2?594F:596F)/2048F)
+                .setColor(0xFFFFEC9C).setUv((i==0 || i==3?1127F:1129F)/2048F,(i<2?594F:596F)/2048F)
                 .setOverlay(overlay).setLight(15728880).setNormal(pose.last(),0,0,-1);
         }
         for(Bone child:b.children)renderBone(child,pose,buffer,light,overlay,color,false);

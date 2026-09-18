@@ -78,13 +78,16 @@ public final class ClientEvents {
         int phase = Mth.clamp(nearest.phase(), 1, 4);
         // Keep the regular situational track from competing with the encounter score.
         minecraft.getMusicManager().stopPlaying();
-        if (musicLevel != minecraft.level || battleMusic == null || musicWasYangJian
-                || musicPhase != phase || musicEntity == null || !musicEntity.equals(nearest.getUUID())
-                || !minecraft.getSoundManager().isActive(battleMusic)) {
+        // The pair shares one health pool and one phase, and they swap places as they dash, so
+        // only the level, the phase and a surviving track may re-key the score. Restarting on the
+        // nearest dancer cut the music back to its opening bars every time the player crossed
+        // between the two, which is what made the duet score sound broken.
+        boolean active = battleMusic != null && minecraft.getSoundManager().isActive(battleMusic);
+        if (BattleMusicRules.restartDancerTrack(musicLevel == minecraft.level, battleMusic != null,
+                musicWasYangJian, active, musicPhase, phase)) {
             stopBattleMusic(minecraft);
             musicLevel = minecraft.level;
             musicPhase = phase;
-            musicEntity = nearest.getUUID();
             musicWasYangJian = false;
             battleMusic = SimpleSoundInstance.forMusic(soundForPhase(phase));
             minecraft.getSoundManager().play(battleMusic);
@@ -97,7 +100,7 @@ public final class ClientEvents {
         boolean active = battleMusic != null && minecraft.getSoundManager().isActive(battleMusic);
         int wantedTrack = boss.isArenaBoss() && boss.isArenaPreparing() ? 0 : 1;
         boolean introFinished = sameBoss && yangJianTrack == 0 && (!boss.isArenaPreparing() || !active);
-        if (musicLevel != minecraft.level || !sameBoss || !active || introFinished) {
+        if (BattleMusicRules.restartYangJianTrack(musicLevel == minecraft.level, sameBoss, active, introFinished)) {
             // The arena entrance uses the four-second 49-53 cut while the boss is
             // hidden. Once it appears, and for every direct summon/replay, use 53s.
             int track = sameBoss && yangJianTrack == 0 && introFinished ? 1 : wantedTrack;

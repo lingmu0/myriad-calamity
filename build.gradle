@@ -71,7 +71,17 @@ tasks.register('yangJianTransitionTest', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'net.xuwu.myriadcalamity.YangJianTransitionTest'
 }
-tasks.named('check') { dependsOn 'combatTest', 'animationTest', 'yangJianCombatTest', 'cloudArenaTest', 'yangJianEffectsTest', 'yangJianHazardTest', 'yangJianDefenseTest', 'yangJianTransitionTest' }
+tasks.register('yangJianBeamAimTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.xuwu.myriadcalamity.YangJianBeamAimTest'
+}
+tasks.register('battleMusicTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.xuwu.myriadcalamity.BattleMusicRulesTest'
+}
+tasks.named('check') { dependsOn 'combatTest', 'animationTest', 'yangJianCombatTest', 'cloudArenaTest', 'yangJianEffectsTest', 'yangJianHazardTest', 'yangJianDefenseTest', 'yangJianTransitionTest', 'yangJianBeamAimTest', 'battleMusicTest' }
 // Tests instantiate NBT and SavedData only; they do not launch a client or server.
 sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
 sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
