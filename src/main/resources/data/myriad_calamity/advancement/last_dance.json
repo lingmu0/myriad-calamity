@@ -1,0 +1,31 @@
+{
+  "display": {
+    "icon": {
+      "item": "myriad_calamity:cogwork_heart"
+    },
+    "title": {
+      "translate": "advancement.myriad_calamity.last_dance.title"
+    },
+    "description": {
+      "translate": "advancement.myriad_calamity.last_dance.description"
+    },
+    "background": "minecraft:textures/block/deepslate_tiles.png",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "solo_defeated": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": {
+        "entity": {
+          "type": "myriad_calamity:cogwork_dancer",
+          "nbt": "{Solo:1b}"
+        }
+      }
+    }
+  },
+  "rewards": {
+    "experience": 150
+  }
+}

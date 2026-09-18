@@ -1,0 +1,12 @@
+{
+  "source": "modeling\\yang_jian_v3.bbmodel",
+  "source_sha256": "7a41802624f2e52b16e0263c1929424a635b74b30248d3f1360b832c28c95ed0",
+  "cubes": 2285,
+  "bones": 46,
+  "rendered_faces": 13710,
+  "texture_size": [
+    2048,
+    2048
+  ],
+  "preserves_rest_pose": true
+}

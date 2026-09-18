@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "myriad_calamity:item/cogwork_heart"
+  }
+}

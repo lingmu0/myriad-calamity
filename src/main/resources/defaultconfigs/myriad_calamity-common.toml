@@ -1,0 +1,18 @@
+# 万象灾厄 / Myriad Calamity common configuration
+# Cogwork Dancer: a paired encounter; both dancers share one health pool.
+[cogworkDancer]
+health = 480.0
+damage = 9.0
+
+# Yang Jian: two guard breaks unlock P2/P3; defeat P3 to complete the challenge.
+[yangJian]
+health = 640.0
+damage = 9.0
+guard = 180.0
+phase2Guard = 220.0
+phase3Guard = 260.0
+phase3HealthFloor = 0.4
+# Off by default: no ground attack-range markers, except the phase-two transition slam.
+showAttackIndicators = false
+houndHealth = 40.0
+houndDamage = 5.0
