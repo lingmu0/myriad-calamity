@@ -3,6 +3,7 @@ build/
 run/
 run-data/
 run-1.20.1/
+runsmoke*/
 .idea/
 *.iml
 .work/
