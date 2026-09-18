@@ -114,6 +114,8 @@ for name,clip in clips.items():
 dancer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/entity/CogworkDancer.java').read_text('utf8')
 check(dancer_source.count('attackEnd.add(0,4.5,0)')==1,'The slam staging height has a single definition')
 check(dancer_source.count('stagePoint(')>=4,'Server staging, the windup hold and the getter share one staging rule')
+check('if(position().distanceToSqr(stage)>1.0E-4) teleportTo(stage.x,stage.y,stage.z);' in dancer_source,
+    'The windup holds the server body itself on the staged point')
 check('steer(start,4.2,false)' in dancer_source,'Every barrage pass sweeps onto its lane instead of stopping')
 check('if(position().distanceToSqr(start)>0.04) teleportTo(start.x,start.y,start.z);' in dancer_source,
     'Every barrage pass still lands on its lane start before charging')
@@ -121,7 +123,9 @@ renderer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/client/CogworkDance
 check('CombatMath.BARRAGE_WARNING_TICKS' in renderer_source and 'CombatMath.BARRAGE_PASS_TICKS' in renderer_source,
     'The renderer rebuilds the barrage sweep and charge from the synced plan')
 check('dancer.stagePoint()' in renderer_source and 'dancer.attackWindup()' in renderer_source,
-    'The dancer renderer pins the body to the windup stage point')
+    'The dancer renderer stages the body from the plan')
+check('dancer.moveTo(shown.x,shown.y,shown.z' in renderer_source,
+    'The renderer places the tracked entity itself, not only the model')
 source=ROOT/'modeling/cogwork_dancer.bbmodel'
 manifest=json.loads((ROOT/'modeling/mcp-export-manifest.json').read_text('utf8'))
 check(manifest['source_sha256']==hashlib.sha256(source.read_bytes()).hexdigest(),'Assets match the actual Blockbench export')

@@ -31,31 +31,30 @@ public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,Cogwo
     @Override public ResourceLocation getTextureLocation(CogworkDancer entity) { return entity.follower()?SILVER:GOLD; }
 
     /**
-     * The warnings are painted from the locked server plan, so the drawn body is driven by the same
-     * plan instead of by position packets.
+     * The warnings are painted from the locked server plan, so the tracked body is placed by the
+     * same plan instead of by position packets.
      *
-     * <p>1.20.1 moves a tracked entity with relative position packets and interpolates each one over
-     * three ticks, so a fast sweep is drawn several blocks behind the server and only catches up
-     * once the charge has already started. The 1.21.1 build syncs the absolute position every tick
-     * and therefore does not show that lag. Rebuilding the sweep from the synced plan removes it:
-     * the four charges read as one continuous flurry again, and the body is on the lane before it
-     * leaves. Everything the plan does not describe still follows the ordinary tracked position.
+     * <p>The server stages and holds the body on the plan every tick, but 1.20.1 moves a tracked
+     * entity with relative position packets and interpolates each one over three ticks, so the
+     * client copy - the one drawn, and the one F3+B outlines - lags several blocks behind and only
+     * catches up once the charge has already started. The 1.21.1 build syncs the absolute position
+     * every tick and shows none of that. Placing the entity itself (not just the model) removes the
+     * gap: the hitbox, the warning and the server all sit on the staged lane, and the four barrage
+     * charges still read as one continuous flurry. Everything the plan does not describe keeps
+     * following the ordinary tracked position.
      */
     @Override public void render(CogworkDancer dancer,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
-        Vec3 offset=stageOffset(dancer,partial);
-        pose.pushPose();
-        pose.translate(offset.x,offset.y,offset.z);
+        placeOnPlan(dancer,partial);
         super.render(dancer,yaw,partial,pose,buffers,light);
-        pose.popPose();
     }
 
-    private Vec3 stageOffset(CogworkDancer dancer,float partial) {
+    private void placeOnPlan(CogworkDancer dancer,float partial) {
         Vec3 tracked=dancer.getPosition(partial);
         Stage stage=stageWindow(dancer,partial);
         if(stage==null) {
             slides.remove(dancer);
             shownPositions.put(dancer,tracked);
-            return Vec3.ZERO;
+            return;
         }
         Vec3 previous=shownPositions.getOrDefault(dancer,tracked);
         Slide slide=slides.get(dancer);
@@ -67,8 +66,8 @@ public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,Cogwo
         double eased=stage.linear()?progress:1-Math.pow(1-progress,3);
         Vec3 shown=slide.from().lerp(slide.target(),eased);
         shownPositions.put(dancer,shown);
-        Vec3 offset=shown.subtract(tracked);
-        return offset.lengthSqr()>1.0E-6?offset:Vec3.ZERO;
+        if(shown.distanceToSqr(dancer.position())>1.0E-4)
+            dancer.moveTo(shown.x,shown.y,shown.z,dancer.getYRot(),dancer.getXRot());
     }
 
     /**
