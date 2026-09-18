@@ -118,7 +118,8 @@ check('steer(start,4.2,false)' in dancer_source,'Every barrage pass sweeps onto 
 check('if(position().distanceToSqr(start)>0.04) teleportTo(start.x,start.y,start.z);' in dancer_source,
     'Every barrage pass still lands on its lane start before charging')
 renderer_source=(ROOT/'src/main/java/net/xuwu/myriadcalamity/client/CogworkDancerRenderer.java').read_text('utf8')
-check('CombatMath.BARRAGE_PASS_TICKS' not in renderer_source,'The windup slide never freezes the barrage passes')
+check('CombatMath.BARRAGE_WARNING_TICKS' in renderer_source and 'CombatMath.BARRAGE_PASS_TICKS' in renderer_source,
+    'The renderer rebuilds the barrage sweep and charge from the synced plan')
 check('dancer.stagePoint()' in renderer_source and 'dancer.attackWindup()' in renderer_source,
     'The dancer renderer pins the body to the windup stage point')
 source=ROOT/'modeling/cogwork_dancer.bbmodel'
