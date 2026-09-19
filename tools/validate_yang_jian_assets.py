@@ -188,6 +188,8 @@ def main():
     assert len(png)>1000
     from check_yang_jian_transition_contact import validate as validate_transition_contact
     validate_transition_contact()
+    from check_yang_jian_transition_grip import validate as validate_transition_grip
+    validate_transition_grip()
     print(f'Yang Jian: approved model hash verified; {len(names)} bones, {faces} faces, {len(runtime)} clips; UVs, loop seams and server hit frames valid.')
 
 

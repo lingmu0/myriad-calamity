@@ -11,9 +11,9 @@ import copy
 def append_steps(pose, finish):
     carries = {
         '': {},
-        '_axe': {'right_arm': [11, -8, -8], 'right_forearm': [-12, 0, 9], 'left_arm': [13, 0, 8]},
-        '_sword': {'right_arm': [16, -11, -9], 'right_forearm': [-7, 0, 9], 'right_hand': [-23, 0, -8]},
-        '_whip': {'right_arm': [24, -9, -10], 'right_forearm': [-20, 0, 8], 'right_hand': [-5, 0, -4]},
+        '_axe': {'right_arm': [11, -8, 5], 'right_forearm': [-12, 0, 0], 'left_arm': [13, 0, -5]},
+        '_sword': {'right_arm': [16, -11, 5], 'right_forearm': [-7, 0, 0], 'right_hand': [-23, 0, -8]},
+        '_whip': {'right_arm': [24, -9, 5], 'right_forearm': [-20, 0, 0], 'right_hand': [-5, 0, -4]},
     }
     # Front foot reaches once while the rear foot drives and gathers underneath;
     # there is no alternating walk cycle and no cosmetic horizontal root motion.

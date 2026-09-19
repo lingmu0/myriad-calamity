@@ -67,6 +67,8 @@ public final class CogworkDancer extends Monster {
         super(type,level);
         setPersistenceRequired();
         setNoGravity(true);
+        // The construct glides on its own clockwork: terrain and player builds never stop it.
+        noPhysics=true;
         xpReward=80;
     }
     public static AttributeSupplier.Builder attributes() {
@@ -149,9 +151,9 @@ public final class CogworkDancer extends Monster {
         return other instanceof CogworkDancer dancer && dancer.isAlive() ? dancer : null;
     }
     public static boolean validSpawn(Level level, Vec3 at) {
+        // Blocks never obstruct the construct, so only the ground it stands on matters.
         BlockPos floor=BlockPos.containing(at).below();
-        return level.hasChunkAt(floor) && level.getBlockState(floor).isFaceSturdy(level,floor,Direction.UP)
-            && level.noCollision(new AABB(at.x-0.65,at.y,at.z-0.65,at.x+0.65,at.y+3.6,at.z+0.65));
+        return level.hasChunkAt(floor) && level.getBlockState(floor).isFaceSturdy(level,floor,Direction.UP);
     }
     public static boolean summonAtAltar(ServerLevel level,BlockPos altar) {
         Vec3 centre=Vec3.atBottomCenterOf(altar.above());
@@ -481,13 +483,16 @@ public final class CogworkDancer extends Monster {
     private void steer(Vec3 point,double maximum,boolean turn) {
         Vec3 delta=point.subtract(position());
         Vec3 requested=delta.length()>maximum?delta.normalize().scale(maximum):delta;
-        // Check the swept path before applying hit detection, including player-built obstacles.
-        int steps=Math.max(1,(int)Math.ceil(requested.length()/0.3));
-        Vec3 allowed=Vec3.ZERO;
-        for(int i=1;i<=steps;i++) {
-            Vec3 candidate=requested.scale((double)i/steps);
-            if(!level().noCollision(this,getBoundingBox().move(candidate)))break;
-            allowed=candidate;
+        Vec3 allowed=requested;
+        if(!noPhysics) {
+            // Check the swept path before applying hit detection, including player-built obstacles.
+            int steps=Math.max(1,(int)Math.ceil(requested.length()/0.3));
+            allowed=Vec3.ZERO;
+            for(int i=1;i<=steps;i++) {
+                Vec3 candidate=requested.scale((double)i/steps);
+                if(!level().noCollision(this,getBoundingBox().move(candidate)))break;
+                allowed=candidate;
+            }
         }
         setDeltaMovement(allowed);if(turn)face(point,30);getNavigation().stop();
     }
@@ -739,6 +744,6 @@ public final class CogworkDancer extends Monster {
         lastStruck=tag.hasUUID("LastStruckDancer")?tag.getUUID("LastStruckDancer"):null;
         sequence=tag.getInt("DanceSequence");dashSequence=tag.getInt("DashSequence");slamSequence=tag.getInt("SlamSequence");phaseThreePairSequence=tag.getInt("PhaseThreePairSequence");
         transitionTicks=CombatMath.restoredTransitionTicks(tag.getInt("TransitionTicks"));
-        cancelAttack();if(transitionTicks>0)resumeTransition();setNoGravity(true);
+        cancelAttack();if(transitionTicks>0)resumeTransition();setNoGravity(true);noPhysics=true;
     }
 }
