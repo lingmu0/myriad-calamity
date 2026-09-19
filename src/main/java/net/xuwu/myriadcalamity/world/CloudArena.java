@@ -253,6 +253,14 @@ public final class CloudArena {
             Entity boss = arena.getEntity(data.boss);
             if (boss instanceof YangJian) boss.discard();
         }
+        // An encounter that ends while its owner is already elsewhere (they died and respawned, or
+        // logged out away from the realm) leaves nothing to travel back to. Keeping that stale
+        // ticket would swallow their next talisman use as a no-op return, so the fight could not be
+        // started again. The ticket lives on only while the owner still stands in the realm.
+        if (data.owner != null) {
+            ServerPlayer owner = arena.getServer().getPlayerList().getPlayer(data.owner);
+            if (owner == null || !inCloudRealm(owner.level())) data.returns.remove(data.owner);
+        }
         data.owner = null;
         data.boss = null;
         data.fighting = false;

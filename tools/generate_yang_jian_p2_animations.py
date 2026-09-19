@@ -4,6 +4,9 @@ The P1 generator owns the resource write; importing this module never overwrites
 files. Full clips use the exact YangJianSkill windup/active/recovery timeline.
 """
 import copy
+
+from generate_yang_jian_animations import CARRY_ANGLE
+
 import math
 
 
@@ -48,12 +51,14 @@ def append_p2(pose, finish, attack_pose):
         for tick in range(0,81,4):
             wave=math.sin(tick*math.pi/40)
             p=pose(chest=[wave*.7,0,0],head=[-wave*.3,0,0])
+            # A carried weapon clears the legs by flexing the elbow forward, never by splaying the
+            # forearm outward, so every carry keeps the elbow's sideways channel at zero.
             if weapon=='axe':
-                p['right_arm']=[11,-8,5];p['right_forearm']=[-12,0,0];p['left_arm']=[13,0,-5]
+                p['right_arm']=[11,-8,8];p['right_forearm']=[-20,0,-CARRY_ANGLE];p['left_arm']=[13,0,-5]
             elif weapon=='sword':
-                p['right_arm']=[16,-11,5];p['right_forearm']=[-7,0,0];p['right_hand']=[-23,0,-8]
+                p['right_arm']=[16,-11,8];p['right_forearm']=[-16,0,-CARRY_ANGLE];p['right_hand']=[-23,0,0]
             else:
-                p['right_arm']=[24,-9,5];p['right_forearm']=[-20,0,0];p['right_hand']=[-5,0,-4]
+                p['right_arm']=[24,-9,8];p['right_forearm']=[-26,0,-CARRY_ANGLE];p['right_hand']=[-5,0,0]
             frames.append(frame(tick,p,wave*.18))
         finish('p2_idle_'+weapon,frames,80,True)
 
@@ -68,8 +73,8 @@ def append_p2(pose, finish, attack_pose):
         left_arm=[65,12,39],left_forearm=[-23,0,-17],left_hand=[-35,0,12],
         left_thigh=[36,0,-9],right_thigh=[20,0,8],left_shin=[-62,0,0],right_shin=[-51,0,0])
     call=pose(hips=[-4,0,0],waist=[-6,0,0],chest=[-10,0,0],neck=[5,0,0],head=[-12,0,0],
-        right_arm=[139,-8,-14],right_forearm=[-35,0,15],right_hand=[-103,0,0],
-        left_arm=[106,14,37],left_forearm=[-29,0,-21],left_hand=[-45,-12,13],
+        right_arm=[139,-8,-14],right_forearm=[-35,0,-CARRY_ANGLE],right_hand=[-103,0,0],
+        left_arm=[106,14,37],left_forearm=[-29,0,CARRY_ANGLE],left_hand=[-45,-12,13],
         left_thigh=[37,0,-8],right_thigh=[26,0,8],left_shin=[-66,0,0],right_shin=[-55,0,0])
     loaded=axe(True)
     loaded['left_thigh']=[36,0,-10];loaded['right_thigh']=[27,0,9]
@@ -79,22 +84,38 @@ def append_p2(pose, finish, attack_pose):
     # above the right hand for the whole spin and the dive, and only the slam releases it. Both arms
     # were solved against the rig (see tools/check_yang_jian_transition_grip.py) with the grip kept
     # in front of the chest; the handle then leans up and outward with the head above the shoulder.
+    # The elbow stays a hinge (sideways channel zero) and only flexes and pronates.
     TWO_HANDED_GRIP={
-        32:{'left_arm':[68.77,-51.78,41.06],'left_forearm':[-50.82,0.0,-100.69],'left_hand':[4.19,-47.45,-52.61],
-            'right_arm':[72.5,43.92,-77.97],'right_forearm':[-75.87,-0.01,13.71],'right_hand':[-24.17,13.21,-5.84]},
-        40:{'left_arm':[71.73,-48.48,42.83],'left_forearm':[-52.14,0.0,-102.83],'left_hand':[13.99,-42.06,-58.85],
-            'right_arm':[73.84,45.67,-74.84],'right_forearm':[-77.36,-0.01,13.63],'right_hand':[-22.17,11.03,-7.57]},
-        46:{'left_arm':[75.08,-43.68,44.45],'left_forearm':[-54.93,-6.4,-95.49],'left_hand':[13.87,-37.45,-59.28],
-            'right_arm':[76.34,46.06,-70.93],'right_forearm':[-77.83,-3.22,13.18],'right_hand':[-21.95,10.18,-6.7]},
-        52:{'left_arm':[78.02,-39.33,45.85],'left_forearm':[-58.36,-11.55,-88.18],'left_hand':[13.35,-33.14,-60.21],
-            'right_arm':[78.71,46.34,-67.15],'right_forearm':[-78.28,-6.08,12.61],'right_hand':[-21.64,9.32,-6.1]},
-        58:{'left_arm':[80.52,-35.44,47.19],'left_forearm':[-62.03,-15.57,-81.09],'left_hand':[12.42,-29.19,-61.38],
-            'right_arm':[80.93,46.57,-63.51],'right_forearm':[-78.61,-8.65,12.11],'right_hand':[-21.33,8.45,-5.73]},
-        64:{'left_arm':[82.58,-32.01,48.54],'left_forearm':[-65.63,-18.64,-74.4],'left_hand':[11.2,-25.64,-62.62],
-            'right_arm':[82.98,46.81,-60.03],'right_forearm':[-78.79,-10.96,11.76],'right_hand':[-21.07,7.58,-5.54]},
-        68:{'left_arm':[84.37,-28.96,49.78],'left_forearm':[-69.17,-20.9,-68.09],'left_hand':[9.82,-22.47,-63.94],
-            'right_arm':[84.92,47.01,-56.71],'right_forearm':[-78.95,-13.01,11.41],'right_hand':[-20.77,6.72,-5.51]},
-    }
+
+    32:{"left_arm":[94.82, -15.48, 28.52],"left_forearm":[-101.64, 2.44, 18.0],"left_hand":[-52.94, -24.07, -23.74],
+
+        "right_arm":[80.42, 33.15, -75.07],"right_forearm":[-92.88, -0.02, -18.0],"right_hand":[-12.19, 13.02, -7.13]},
+
+    40:{"left_arm":[94.82, -15.47, 28.52],"left_forearm":[-101.63, 2.43, 18.0],"left_hand":[-52.94, -24.07, -23.75],
+
+        "right_arm":[80.42, 33.15, -75.07],"right_forearm":[-92.86, -0.02, -18.0],"right_hand":[-12.2, 13.02, -7.14]},
+
+    46:{"left_arm":[94.82, -15.47, 28.52],"left_forearm":[-101.63, 2.43, 18.0],"left_hand":[-52.93, -24.07, -23.76],
+
+        "right_arm":[80.42, 33.15, -75.07],"right_forearm":[-92.86, -0.02, -18.0],"right_hand":[-12.2, 13.02, -7.14]},
+
+    52:{"left_arm":[94.82, -15.48, 28.52],"left_forearm":[-101.64, 2.42, 18.0],"left_hand":[-52.93, -24.05, -23.76],
+
+        "right_arm":[80.42, 33.15, -75.06],"right_forearm":[-92.86, -0.02, -18.0],"right_hand":[-12.2, 13.02, -7.14]},
+
+    58:{"left_arm":[94.82, -15.51, 28.52],"left_forearm":[-101.65, 2.41, 18.0],"left_hand":[-52.92, -24.02, -23.76],
+
+        "right_arm":[80.42, 33.16, -75.06],"right_forearm":[-92.86, -0.02, -18.0],"right_hand":[-12.19, 13.02, -7.14]},
+
+    64:{"left_arm":[94.82, -15.54, 28.52],"left_forearm":[-101.66, 2.38, 18.0],"left_hand":[-52.9, -23.97, -23.75],
+
+        "right_arm":[80.43, 33.16, -75.04],"right_forearm":[-92.85, -0.04, -18.0],"right_hand":[-12.19, 13.02, -7.14]},
+
+    68:{"left_arm":[94.81, -15.58, 28.52],"left_forearm":[-101.68, 2.35, 18.0],"left_hand":[-52.88, -23.9, -23.74],
+
+        "right_arm":[80.44, 33.16, -75.01],"right_forearm":[-92.84, -0.06, -18.0],"right_hand":[-12.19, 13.01, -7.14]},
+
+}
 
     def hold(carried,tick):
         for name,values in TWO_HANDED_GRIP[tick].items():
@@ -118,7 +139,7 @@ def append_p2(pose, finish, attack_pose):
     dive['hips'][0]=-3;dive['chest'][0]=4
     hold(dive,68)
     impact=pose(hips=[18,0,0],waist=[19,0,0],chest=[31,0,0],neck=[-12,0,0],head=[-18,0,0],
-        right_arm=[52,-8,-12],right_forearm=[-14,0,13],right_hand=[-60.85,0,0],
+        right_arm=[52,-8,-12],right_forearm=[-14,0,13],right_hand=[-66.0,0,0],
         left_arm=[66,20,43],left_forearm=[-31,-15,25],left_hand=[-22,0,-14],
         left_thigh=[47,0,-10],right_thigh=[-27,0,10],left_shin=[-48,0,0],right_shin=[32,0,0],
         left_foot=[9,0,0],right_foot=[-15,0,0])
