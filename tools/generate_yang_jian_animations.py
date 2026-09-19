@@ -17,9 +17,12 @@ SOURCE = {}
 
 
 def pose(**overrides):
+    # A real arm abducts at the shoulder and bends only at the elbow, so the hanging rest pose
+    # carries its outward angle on the upper arm (15 degrees past the mesh's own 10) and keeps the
+    # forearm's sideways channels at zero: the elbow stays a hinge over the sagittal plane.
     p = {'hips': [0,0,0], 'waist': [0,0,0], 'chest': [0,0,0], 'neck': [0,0,0], 'head': [0,0,0],
-         'left_arm': [8,0,7], 'left_forearm': [5,0,-7], 'left_hand': [0,0,0],
-         'right_arm': [5,-5,-6], 'right_forearm': [-6,0,6], 'right_hand': [0,0,0],
+         'left_arm': [6,0,-5], 'left_forearm': [-14,0,0], 'left_hand': [0,0,0],
+         'right_arm': [4,-4,5], 'right_forearm': [-14,0,0], 'right_hand': [0,0,0],
          'left_thigh': [0,0,-2], 'right_thigh': [0,0,2], 'left_shin': [0,0,0], 'right_shin': [0,0,0],
          'left_foot': [0,0,0], 'right_foot': [0,0,0], 'weapon': [0,0,0], 'root': [0,0,0]}
     p.update(overrides)

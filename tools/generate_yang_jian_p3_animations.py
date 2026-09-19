@@ -4,7 +4,7 @@ import math
 
 def append_p3(pose,finish,attack_pose):
     def frame(t,p,y=0):return (t,p,[0,y,0])
-    calm=pose(chest=[-2,0,0],head=[0,0,0],left_arm=[30,8,22],left_forearm=[-23,0,-15],left_hand=[-30,0,0])
+    calm=pose(chest=[-2,0,0],head=[0,0,0],left_arm=[12,8,-5],left_forearm=[-20,0,0],left_hand=[-30,0,0])
     focus=pose(hips=[2,0,0],waist=[2,0,0],chest=[3,0,0],head=[-5,0,0],
         left_arm=[138.5,-47,28.5],left_forearm=[-69,25,-8],left_hand=[-22,0,-13],
         right_arm=[13,-7,-8],right_forearm=[-14,0,10],left_thigh=[12,0,-6],right_thigh=[-12,0,6])
