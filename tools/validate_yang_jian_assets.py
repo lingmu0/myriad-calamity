@@ -65,6 +65,29 @@ def main():
                 assert keys[0][0]==0 and abs(keys[-1][0]-clip['length'])<1e-6
                 if clip['loop']:
                     assert max(abs(a-b) for a,b in zip(keys[0][1:],keys[-1][1:]))<1e-4,(name,bone,'loop seam')
+    # A real arm abducts at the shoulder and carries the forearm back inward (the elbow's carrying
+    # angle), so every held pose must roll the forearm inward by a human amount: it used to splay
+    # outward instead, and the raised two-handed grip twisted it ~100 degrees the wrong way.
+    # Authored keys are checked rather than the bake, so the spline's tangent overshoot into the
+    # slam key is not mistaken for a pose regression.
+    def elbow_keys(name,first=None,last=None):
+        keys=[]
+        for side,sign in (('left',-1),('right',1)):
+            bone=side+'_forearm'
+            for key in authored[name]['bones'][bone]['rotation']:
+                if (first is None or key['time']>=first-.002) and (last is None or key['time']<=last+.002):
+                    keys.append((name,bone,sign,key))
+        return keys
+    def check_carrying_angle(keys):
+        for where,bone,sign,key in keys:
+            inward=sign*key['values'][2]
+            assert 4<=inward<=26,(where,bone,'The forearm must carry inward by the elbow angle',key)
+    hinged=['idle','walk','thrust_windup','counter_windup','guard','phase_clear','death','summon_hound',
+            'p2_idle_axe','p2_idle_sword','p2_idle_whip','p3_idle']
+    for name in hinged:
+        check_carrying_angle(elbow_keys(name))
+    # The two-handed carry keeps the same carrying angle from the summon grip (32) to the dive (68).
+    check_carrying_angle(elbow_keys('transition',1.6,3.4))
     for suffix in ('','_axe','_sword','_whip'):
         name='step_approach'+suffix
         clip=runtime[name]

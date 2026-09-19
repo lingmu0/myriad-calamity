@@ -10,6 +10,10 @@ import math
 from animation_baker import bake, sample
 
 ROOT = Path(__file__).resolve().parents[1]
+# Elbow carrying angle: how far the forearm is rolled back inward relative to the abducted
+# upper arm. A real arm is widest at the shoulder and narrows towards the hands; every
+# generated pose (P1/P2/P3, carries, stances and the two-handed grip) shares this value.
+CARRY_ANGLE = 18
 ASSETS = ROOT/'src/main/resources/assets/myriad_calamity'
 GROUPS = {g['name'] for g in json.loads((ROOT/'modeling/yang_jian_v3.bbmodel').read_text('utf8'))['groups']}
 CLIPS = {}
@@ -17,12 +21,12 @@ SOURCE = {}
 
 
 def pose(**overrides):
-    # A real arm abducts at the shoulder and bends only at the elbow, so the hanging rest pose
-    # carries its outward angle on the upper arm (15 degrees past the mesh's own 10) and keeps the
-    # forearm's sideways channels at zero: the elbow stays a hinge over the sagittal plane.
+    # A real arm abducts at the shoulder and then carries the forearm back inward again (the
+    # elbow's carrying angle), so the hands hang under the shoulders instead of splaying out:
+    # the upper arm keeps its outward roll and the forearm gets the mirrored inward channel.
     p = {'hips': [0,0,0], 'waist': [0,0,0], 'chest': [0,0,0], 'neck': [0,0,0], 'head': [0,0,0],
-         'left_arm': [6,0,-5], 'left_forearm': [-14,0,0], 'left_hand': [0,0,0],
-         'right_arm': [4,-4,5], 'right_forearm': [-14,0,0], 'right_hand': [0,0,0],
+         'left_arm': [6,0,-8], 'left_forearm': [-10,0,CARRY_ANGLE], 'left_hand': [0,0,0],
+         'right_arm': [4,-4,8], 'right_forearm': [-10,0,-CARRY_ANGLE], 'right_hand': [0,0,0],
          'left_thigh': [0,0,-2], 'right_thigh': [0,0,2], 'left_shin': [0,0,0], 'right_shin': [0,0,0],
          'left_foot': [0,0,0], 'right_foot': [0,0,0], 'weapon': [0,0,0], 'root': [0,0,0]}
     p.update(overrides)
@@ -84,6 +88,20 @@ def curves(frames, length, loop=False):
 
 
 def finish(name, frames, ticks, loop=False, metadata=None):
+    # An elbow only flexes (X) and pronates (Y): its sideways channel is the structural carrying
+    # angle, never a pose value. Whatever bank the authoring put on a forearm moves up to the
+    # shoulder, which is where a real arm shapes a swing plane, so no pose - not even a wide slash -
+    # bends the forearm out of the elbow's plane.
+    seen=set()
+    for _,p,_ in frames:
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
+        for side,sign in (('left',1),('right',-1)):
+            arm,fore=side+'_arm',side+'_forearm'
+            if arm in p and fore in p:
+                p[arm][2]+=p[fore][2]-sign*CARRY_ANGLE
+                p[fore][2]=sign*CARRY_ANGLE
     bones = curves(frames, ticks/20, loop)
     # Overlapping plates, split cloth and hair follow the preceding body motion.
     secondary = ['left_shoulder','right_shoulder','left_vambrace','right_vambrace',
@@ -159,7 +177,7 @@ def main():
     idle = []
     for tick in range(0,81,4):
         w=math.sin(tick*math.pi/40)
-        p=pose(chest=[w*.8,0,0],neck=[-w*.3,0,0],right_forearm=[-6+w*.65,0,6],left_hand=[w*.6,0,0])
+        p=pose(chest=[w*.8,0,0],neck=[-w*.3,0,0],right_forearm=[-6+w*.65,0,-CARRY_ANGLE],left_hand=[w*.6,0,0])
         idle.append((tick,p,[0,w*.20,0]))
     finish('idle',idle,80,True)
     walk=[]
@@ -168,7 +186,7 @@ def main():
         p=pose(hips=[2,w*3,0],waist=[-1,-w*4,0],chest=[4,-w*5,w*.5],head=[-2,w*3,0],
             left_thigh=[w*24,0,-2],right_thigh=[-w*24,0,2],left_shin=[-max(0,-w)*31,0,0],
             right_shin=[-max(0,w)*31,0,0],left_foot=[max(0,c)*8,0,0],right_foot=[max(0,-c)*8,0,0],
-            left_arm=[-w*13,0,7],left_forearm=[8+max(0,w)*9,0,-7],right_arm=[5+w*4,-5,-6])
+            left_arm=[-w*13,0,-8],left_forearm=[8+max(0,w)*9,0,CARRY_ANGLE],right_arm=[5+w*4,-5,-8])
         walk.append((tick,p,[0,abs(w)*.65,0]))
     finish('walk',walk,24,True)
     combos('combo',[8,7,10,17],3,14,['horizontal','upward','spin','overhead'])
@@ -176,8 +194,8 @@ def main():
     combos('six_combo',[7,5,15,5,7,18],2,20,['upward','spin','spin','horizontal','upward','overhead'])
 
     ready=pose(hips=[5,0,0],waist=[4,-12,0],chest=[7,-18,0],head=[-9,15,0],
-        right_arm=[60,-10,-10],right_forearm=[-18,0,9],right_hand=[-116,0,0],
-        left_arm=[65,20,25],left_forearm=[-25,0,-14],left_thigh=[24,0,-5],right_thigh=[-25,0,5],right_shin=[18,0,0])
+        right_arm=[60,-10,8],right_forearm=[-18,0,-CARRY_ANGLE],right_hand=[-116,0,0],
+        left_arm=[65,12,8],left_forearm=[-25,0,CARRY_ANGLE],left_thigh=[24,0,-5],right_thigh=[-25,0,5],right_shin=[18,0,0])
     thrust=pose(hips=[13,0,0],waist=[8,16,0],chest=[15,18,0],head=[-17,-22,0],
         right_arm=[72,8,-4],right_forearm=[-8,0,2],right_hand=[-118,0,0],
         left_arm=[35,-10,28],left_forearm=[-34,0,-17],left_thigh=[40,0,-5],right_thigh=[-39,0,5],
@@ -193,31 +211,31 @@ def main():
         left_arm=[25,0,23],left_thigh=[30,0,-4],right_thigh=[-25,0,4])
     finish('throw',[(0,pose(),[0,0,0]),(12,throw_load,[0,1,0]),(14.5,throw_load,[0,1,0]),
         (16,throw_release,[0,.6,0]),(22,throw_release,[0,0,0]),(26,pose(),[0,0,0])],26)
-    finish('recall',[(0,pose(right_arm=[70,0,-8],right_forearm=[-9,0,3]),[0,0,0]),
-        (5,pose(right_arm=[30,-12,-10],right_forearm=[-34,0,12],chest=[-3,10,0]),[0,0,0]),
+    finish('recall',[(0,pose(right_arm=[70,0,-8],right_forearm=[-9,0,-18]),[0,0,0]),
+        (5,pose(right_arm=[30,-12,-10],right_forearm=[-34,0,-CARRY_ANGLE],chest=[-3,10,0]),[0,0,0]),
         (14,pose(),[0,0,0])],14)
     finish('throw_followup',[(0,attack_pose('horizontal'),[0,-.4,-.3]),
         (3,attack_pose('horizontal',follow=True),[0,-.2,0]),(6,pose(),[0,0,0])],6)
-    summon=pose(chest=[-3,8,0],head=[5,-9,0],left_arm=[72,15,42],left_forearm=[-10,0,-20],left_hand=[-30,0,12],
-        right_arm=[-3,-10,-7],right_forearm=[-10,0,10])
+    summon=pose(chest=[-3,8,0],head=[5,-9,0],left_arm=[72,15,16],left_forearm=[-10,0,CARRY_ANGLE],left_hand=[-30,0,12],
+        right_arm=[-3,-10,-7],right_forearm=[-10,0,-18])
     finish('summon_hound',[(0,pose(),[0,0,0]),(10,summon,[0,.3,0]),(22,summon,[0,.3,0]),(36,pose(),[0,0,0])],36)
     finish('coordinated',[(0,pose(),[0,0,0]),(8,attack_pose('horizontal',True),[0,-.4,0]),
         (12,attack_pose('horizontal'),[0,-.4,-.2]),(22,ready,[0,-.6,0]),(36,ready,[0,-.6,0]),
         (38,thrust,[0,-1,-.7]),(43,thrust,[0,-1,-.7]),(61,pose(),[0,0,0])],61)
     guard=pose(hips=[2,12,0],waist=[0,10,0],chest=[-3,14,0],neck=[0,-12,0],head=[0,-14,0],
-        right_arm=[76,12,-20],right_forearm=[-43,0,15],right_hand=[-34,0,-52],
-        left_arm=[69,-8,31],left_forearm=[-30,0,-24],left_hand=[-6,0,-15],
+        right_arm=[76,12,8],right_forearm=[-43,0,-CARRY_ANGLE],right_hand=[-34,0,-52],
+        left_arm=[69,-8,14],left_forearm=[-30,0,CARRY_ANGLE],left_hand=[-6,0,-15],
         left_thigh=[14,0,-5],right_thigh=[-13,0,5],right_shin=[10,0,0])
     finish('guard',[(0,pose(),[0,0,0]),(3,guard,[0,-.55,0]),(20,guard,[0,-.55,0])],20)
     finish('counter_windup',[(0,guard,[0,-.5,0]),(9,ready,[0,-.7,0]),(20,ready,[0,-.7,0])],20)
     finish('counter',[(0,ready,[0,-.7,0]),(1.5,thrust,[0,-1,-.7]),(6,thrust,[0,-1,-.7]),(16,pose(),[0,0,0])],16)
     kneel=pose(hips=[12,0,0],waist=[9,0,0],chest=[12,0,0],neck=[9,0,0],head=[10,0,0],
         left_thigh=[44,0,-7],right_thigh=[-49,0,7],left_shin=[-68,0,0],right_shin=[-60,0,0],
-        right_arm=[38,0,-13],right_forearm=[-8,0,7],right_hand=[-28,0,0],
-        left_arm=[38,0,22],left_forearm=[-13,0,-10])
+        right_arm=[38,0,8],right_forearm=[-8,0,-CARRY_ANGLE],right_hand=[-28,0,0],
+        left_arm=[38,0,8],left_forearm=[-13,0,18])
     finish('phase_clear',[(0,pose(),[0,0,0]),(8,pose(chest=[-15,0,0],head=[-12,0,0]),[0,-.7,0]),
         (25,kneel,[0,-7.5,0]),(50,kneel,[0,-7.5,0])],50)
-    death=pose(root=[0,0,76],chest=[16,0,7],head=[18,0,0],right_arm=[29,0,-26],left_arm=[20,0,34],
+    death=pose(root=[0,0,76],chest=[16,0,7],head=[18,0,0],right_arm=[29,0,8],left_arm=[20,0,8],
         left_thigh=[17,0,-9],right_thigh=[-13,0,7],left_shin=[-12,0,0],right_shin=[-19,0,0])
     finish('death',[(0,pose(),[0,0,0]),(8,kneel,[0,-7,0]),(20,death,[0,-1.2,0])],20)
     from generate_yang_jian_p2_animations import append_p2

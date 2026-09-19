@@ -7,13 +7,16 @@ hand keeps each weapon's existing carry throughout the advancing step.
 """
 import copy
 
+from generate_yang_jian_animations import CARRY_ANGLE
+
+
 
 def append_steps(pose, finish):
     carries = {
         '': {},
-        '_axe': {'right_arm': [11, -8, 5], 'right_forearm': [-12, 0, 0], 'left_arm': [13, 0, -5]},
-        '_sword': {'right_arm': [16, -11, 5], 'right_forearm': [-7, 0, 0], 'right_hand': [-23, 0, -8]},
-        '_whip': {'right_arm': [24, -9, 5], 'right_forearm': [-20, 0, 0], 'right_hand': [-5, 0, -4]},
+        '_axe': {'right_arm': [11, -8, 8], 'right_forearm': [-20, 0, -CARRY_ANGLE], 'left_arm': [13, 0, -5]},
+        '_sword': {'right_arm': [16, -11, 8], 'right_forearm': [-16, 0, -CARRY_ANGLE], 'right_hand': [-23, 0, 0]},
+        '_whip': {'right_arm': [24, -9, 8], 'right_forearm': [-26, 0, -CARRY_ANGLE], 'right_hand': [-5, 0, 0]},
     }
     # Front foot reaches once while the rear foot drives and gathers underneath;
     # there is no alternating walk cycle and no cosmetic horizontal root motion.
@@ -61,7 +64,7 @@ def append_steps(pose, finish):
             offhand={
                 0: ([94,8,9],[-4,0,-4],[-75,4,0]),
                 2: ([97,12,7],[-2,0,-3],[-91,6,2]),
-                3.2: ([38,4,21],[-26,0,-13],[-25,2,-3]),
+                3.2: ([38,4,10],[-26,0,-13],[-25,2,-3]),
                 4.4: ([18,0,12],[-8,0,-9],[-7,0,-2]),
             }
             if tick in offhand:
