@@ -4,8 +4,12 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -30,7 +34,7 @@ public final class TriPointedBlade extends Projectile {
     public TriPointedBlade(EntityType<? extends TriPointedBlade> type,Level level) { super(type,level);setNoGravity(true); }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { }
     public static void launch(ServerLevel level,YangJian owner,LivingEntity target) {
-        TriPointedBlade blade=MyriadCalamity.TRI_POINTED_BLADE.get().create(level);if(blade==null) { owner.recoverWeapon();return; }
+        TriPointedBlade blade=MyriadCalamity.TRI_POINTED_BLADE.get().create(level,EntitySpawnReason.EVENT);if(blade==null) { owner.recoverWeapon();return; }
         // Launch along the published warning, even if the player has already dodged away from it.
         // Only the short, angularly capped steering window below can correct the flight afterwards.
         Vec3 start=owner.position().add(0,2.1,0),aim=owner.dashEnd().add(0,.9,0);
@@ -41,7 +45,7 @@ public final class TriPointedBlade extends Projectile {
     }
     @Override public void tick() {
         super.tick();
-        if(!level().isClientSide) {
+        if(!level().isClientSide()) {
             if(++age>=MAX_LIFE || !(getOwner() instanceof YangJian owner) || !owner.isAlive()
                 || owner.action()!=YangJian.THROW || !owner.weaponThrown() || !owner.ownsWeapon(getUUID()) || position().distanceToSqr(launchPoint)>MAX_RANGE*MAX_RANGE) { finish();return; }
             if(age<=TRACKING_TICKS && targetId!=null && level() instanceof ServerLevel server) {
@@ -56,7 +60,7 @@ public final class TriPointedBlade extends Projectile {
             HitResult result=ProjectileUtil.getHitResultOnMoveVector(this,this::canHitEntity);
             if(result.getType()!=HitResult.Type.MISS) {
                 if(!EventHooks.onProjectileImpact(this,result)) {
-                    if(result instanceof EntityHitResult hit)hit.getEntity().hurt(damageSources().mobProjectile(this,owner),damage);
+                    if(result instanceof EntityHitResult hit)hit.getEntity().hurtOrSimulate(damageSources().mobProjectile(this,owner),damage);
                     finish();return;
                 }
             }
@@ -75,11 +79,11 @@ public final class TriPointedBlade extends Projectile {
     @Override protected boolean canHitEntity(Entity entity) {
         return entity instanceof LivingEntity living && getOwner() instanceof YangJian owner && owner.validTarget(living) && super.canHitEntity(entity);
     }
-    @Override protected void addAdditionalSaveData(CompoundTag tag) {
+    @Override protected void addAdditionalSaveData(ValueOutput tag) {
         super.addAdditionalSaveData(tag);tag.putInt("BladeAge",age);tag.putFloat("BladeDamage",damage);
-        if(targetId!=null)tag.putUUID("BladeTarget",targetId);
+        if(targetId!=null)tag.store("BladeTarget",UUIDUtil.CODEC,targetId);
     }
-    @Override protected void readAdditionalSaveData(CompoundTag tag) {
+    @Override protected void readAdditionalSaveData(ValueInput tag) {
         super.readAdditionalSaveData(tag);
         // The caster cancels partially saved attacks too: restoring this projectile could create an unwarned hit.
         age=MAX_LIFE;setNoGravity(true);

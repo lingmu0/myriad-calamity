@@ -1,7 +1,5 @@
 package net.xuwu.myriadcalamity.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.PartPose;
@@ -13,11 +11,19 @@ import net.minecraft.util.Mth;
 import net.xuwu.myriadcalamity.entity.CelestialHound;
 
 /** An angular black celestial hunting dog: gold collar, layered bracers and an articulated jaw/tail. */
-public final class CelestialHoundModel extends EntityModel<CelestialHound> {
-    private final ModelPart root,body,head,jaw,tail,tailTip;
+public final class CelestialHoundModel extends EntityModel<CelestialHoundRenderer.State> {
+    private final ModelPart body,head,jaw,tail,tailTip;
     private final ModelPart[] thighs=new ModelPart[4],shins=new ModelPart[4];
 
     public CelestialHoundModel() {
+        super(createRoot());
+        ModelPart root=root();
+        body=root.getChild("body");
+        head=body.getChild("head");jaw=head.getChild("jaw");tail=body.getChild("tail");tailTip=tail.getChild("tail_tip");
+        for(int i=0;i<4;i++) {thighs[i]=root.getChild("leg_"+i);shins[i]=thighs[i].getChild("shin");}
+    }
+
+    private static ModelPart createRoot() {
         MeshDefinition mesh=new MeshDefinition();
         PartDefinition r=mesh.getRoot();
         PartDefinition torso=r.addOrReplaceChild("body",CubeListBuilder.create().texOffs(0,0)
@@ -54,31 +60,29 @@ public final class CelestialHoundModel extends EntityModel<CelestialHound> {
                 .addBox(-1.2F,2.15F,-1.3F,2.4F,1.1F,2.6F).texOffs(28,17)
                 .addBox(-1.3F,3.3F,-2.2F,2.6F,1.7F,3.7F),PartPose.offset(0,5,0));
         }
-        root=LayerDefinition.create(mesh,64,64).bakeRoot();body=root.getChild("body");
-        head=body.getChild("head");jaw=head.getChild("jaw");tail=body.getChild("tail");tailTip=tail.getChild("tail_tip");
-        for(int i=0;i<4;i++) {thighs[i]=root.getChild("leg_"+i);shins[i]=thighs[i].getChild("shin");}
+        return LayerDefinition.create(mesh,64,64).bakeRoot();
     }
 
-    @Override public void setupAnim(CelestialHound dog,float swing,float amount,float age,float headYaw,float headPitch) {
-        root.getAllParts().forEach(ModelPart::resetPose);
-        float partial=Mth.clamp(age-dog.tickCount,0,1),elapsed=dog.actionAge(partial);
-        head.yRot=Mth.clamp(headYaw,-35,35)*Mth.DEG_TO_RAD;
-        head.xRot=Mth.clamp(headPitch,-20,20)*Mth.DEG_TO_RAD;
+    @Override public void setupAnim(CelestialHoundRenderer.State state) {
+        super.setupAnim(state);
+        float elapsed=state.actionAge,age=state.ageInTicks;
+        head.yRot=Mth.clamp(state.yRot,-35,35)*Mth.DEG_TO_RAD;
+        head.xRot=Mth.clamp(state.xRot,-20,20)*Mth.DEG_TO_RAD;
         tail.yRot=Mth.sin(age*.18F)*.11F;
         tailTip.yRot=Mth.sin(age*.18F-.5F)*.17F;
-        if(dog.action()==CelestialHound.WINDUP) {
+        if(state.action==CelestialHound.WINDUP) {
             float t=Mth.clamp(elapsed/10F,0,1);t=t*t*(3-2*t);
             body.y+=t*1.3F;body.xRot=-t*.13F;head.xRot+=t*.2F;
             jaw.xRot=t*.24F;tail.xRot-=t*.4F;
             for(int i=0;i<4;i++) {thighs[i].xRot=(i<2?-.4F:.75F)*t;shins[i].xRot=(i<2?.5F:-.95F)*t;}
-        } else if(dog.action()==CelestialHound.POUNCE) {
+        } else if(state.action==CelestialHound.POUNCE) {
             float t=Mth.clamp(elapsed/8F,0,1),arc=Mth.sin(t*Mth.PI);
             body.xRot=-.16F+arc*.23F;head.xRot-=.16F;jaw.xRot=.55F;
             tail.xRot+=.27F;tailTip.xRot+=.18F;
             for(int i=0;i<4;i++) {thighs[i].xRot=i<2?-1.0F+arc*.15F:1.03F-arc*.16F;shins[i].xRot=i<2?.25F:-.55F;}
         } else {
-            float power=Math.min(1,amount*1.8F),clock=swing*1.15F;
-            if(dog.action()==CelestialHound.RETREAT)clock=-clock;
+            float power=Math.min(1,state.walkAnimationSpeed*1.8F),clock=state.walkAnimationPos*1.15F;
+            if(state.action==CelestialHound.RETREAT)clock=-clock;
             body.y+=Math.abs(Mth.sin(clock))*power*.7F;
             body.xRot=Mth.cos(clock*2)*power*.04F;
             for(int i=0;i<4;i++) {
@@ -87,8 +91,5 @@ public final class CelestialHoundModel extends EntityModel<CelestialHound> {
             }
             head.xRot-=body.xRot*.5F;
         }
-    }
-    @Override public void renderToBuffer(PoseStack pose,VertexConsumer buffer,int light,int overlay,int color) {
-        root.render(pose,buffer,light,overlay,color);
     }
 }

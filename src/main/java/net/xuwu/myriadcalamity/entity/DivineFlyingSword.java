@@ -4,12 +4,16 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -27,7 +31,7 @@ import net.xuwu.myriadcalamity.config.MyriadConfig;
 
 /** Bounded P2/P3 revolving sword volleys, or a fixed-aim off-hand knife during an advance. */
 public final class DivineFlyingSword extends Projectile {
-    private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(DivineFlyingSword.class,EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(DivineFlyingSword.class,MyriadCalamity.PLAN_SERIALIZER.get());
     @Nullable private UUID casterId,targetId;
     private boolean released,expired;
     private float damage=8;
@@ -61,7 +65,7 @@ public final class DivineFlyingSword extends Projectile {
         if(wave==0)for(DivineFlyingSword old:existing)old.discard();
         int count=YangJianEffects.myriadSwordCount(wave,wave==0?0:existing.size());
         for(int index=0;index<count;index++) {
-            DivineFlyingSword sword=MyriadCalamity.DIVINE_FLYING_SWORD.get().create(level);if(sword==null)continue;
+            DivineFlyingSword sword=MyriadCalamity.DIVINE_FLYING_SWORD.get().create(level,EntitySpawnReason.EVENT);if(sword==null)continue;
             sword.setOwner(owner);sword.casterId=owner.getUUID();sword.targetId=target.getUUID();
             sword.damage=MyriadConfig.scaleYangJianDamage(8);
             CompoundTag plan=new CompoundTag();plan.putLong("time",level.getGameTime());
@@ -76,7 +80,7 @@ public final class DivineFlyingSword extends Projectile {
     }
 
     private static void launchSingle(ServerLevel level,YangJian owner,LivingEntity target,int index,int count,long startTime,boolean armed) {
-        DivineFlyingSword sword=MyriadCalamity.DIVINE_FLYING_SWORD.get().create(level);if(sword==null)return;
+        DivineFlyingSword sword=MyriadCalamity.DIVINE_FLYING_SWORD.get().create(level,EntitySpawnReason.EVENT);if(sword==null)return;
         sword.setOwner(owner);sword.casterId=owner.getUUID();sword.targetId=target.getUUID();
         sword.damage=MyriadConfig.scaleYangJianDamage(8);
         Vec3 center=owner.position().add(0,2.2,0),aim=owner.attackPoint().add(0,.9,0);
@@ -97,9 +101,9 @@ public final class DivineFlyingSword extends Projectile {
             // orbit-complete frame so each blade aims before its own release.
             for(DivineFlyingSword next:level.getEntitiesOfClass(DivineFlyingSword.class,owner.getBoundingBox().inflate(100),
                     sword->owner.getUUID().equals(sword.ownerId()) && !sword.stepThrow() && !sword.myriadSword()
-                        && sword.entityData.get(PLAN).getInt("count")==count
-                        && sword.entityData.get(PLAN).getInt("index")==index+1
-                        && !sword.entityData.get(PLAN).getBoolean("armed"))) {
+                        && sword.entityData.get(PLAN).getIntOr("count",0)==count
+                        && sword.entityData.get(PLAN).getIntOr("index",0)==index+1
+                        && !sword.entityData.get(PLAN).getBooleanOr("armed",false))) {
                 CompoundTag plan=next.entityData.get(PLAN).copy();plan.putBoolean("armed",true);
                 plan.putLong("time",level.getGameTime()-YangJianEffects.ORBIT_TICKS);plan.putBoolean("locked",false);
                 next.entityData.set(PLAN,plan);return;
@@ -113,7 +117,7 @@ public final class DivineFlyingSword extends Projectile {
         // Keep an earlier airborne knife, but replace stale preparations from an interrupted step.
         for(DivineFlyingSword old:level.getEntitiesOfClass(DivineFlyingSword.class,owner.getBoundingBox().inflate(80),
                 sword->owner.getUUID().equals(sword.ownerId()) && sword.stepThrow() && !sword.released))old.discard();
-        DivineFlyingSword sword=MyriadCalamity.DIVINE_FLYING_SWORD.get().create(level);if(sword==null)return;
+        DivineFlyingSword sword=MyriadCalamity.DIVINE_FLYING_SWORD.get().create(level,EntitySpawnReason.EVENT);if(sword==null)return;
         sword.setOwner(owner);sword.casterId=owner.getUUID();sword.targetId=target.getUUID();
         sword.damage=MyriadConfig.scaleYangJianDamage(7);
         CompoundTag plan=new CompoundTag();plan.putLong("time",level.getGameTime());plan.putBoolean("step",true);plan.putBoolean("locked",true);
@@ -122,13 +126,13 @@ public final class DivineFlyingSword extends Projectile {
     }
 
     public boolean hasPlan() { return entityData.get(PLAN).contains("time"); }
-    public float effectAge(float partial) { return hasPlan()?Math.max(0,level().getGameTime()-entityData.get(PLAN).getLong("time")+partial):0; }
-    public boolean stepThrow() { return entityData.get(PLAN).getBoolean("step"); }
-    public boolean myriadSword() { return entityData.get(PLAN).getBoolean("myriad"); }
-    private boolean armed() { return stepThrow() || entityData.get(PLAN).getBoolean("armed"); }
+    public float effectAge(float partial) { return hasPlan()?Math.max(0,level().getGameTime()-entityData.get(PLAN).getLongOr("time",0L)+partial):0; }
+    public boolean stepThrow() { return entityData.get(PLAN).getBooleanOr("step",false); }
+    public boolean myriadSword() { return entityData.get(PLAN).getBooleanOr("myriad",false); }
+    private boolean armed() { return stepThrow() || entityData.get(PLAN).getBooleanOr("armed",false); }
     public int releaseTick() {
         if(stepThrow())return YangJianFootwork.THROW_TICK;
-        return myriadSword()?YangJianEffects.myriadReleaseTick(entityData.get(PLAN).getInt("index")):YangJianEffects.releaseTick();
+        return myriadSword()?YangJianEffects.myriadReleaseTick(entityData.get(PLAN).getIntOr("index",0)):YangJianEffects.releaseTick();
     }
     public boolean flying(float partial) { return armed() && effectAge(partial)>=releaseTick(); }
     public Vec3 aimPoint() { return point(entityData.get(PLAN),"aim"); }
@@ -139,7 +143,7 @@ public final class DivineFlyingSword extends Projectile {
         if(myriadSword() && !flying(partial)) {
             float age=effectAge(partial);
             Vec3 tangent=orbitPoint(age+.1F).subtract(orbitPoint(age));
-            Entity target=level().getEntity(entityData.get(PLAN).getInt("target"));
+            Entity target=level().getEntity(entityData.get(PLAN).getIntOr("target",0));
             Vec3 aim=target instanceof LivingEntity living && living.isAlive()?living.position().add(0,living.getBbHeight()*.5,0):aimPoint();
             Vec3 direction=aim.subtract(position()).normalize();
             double align=Math.clamp((age-(releaseTick()-4))/4D,0,1);
@@ -158,7 +162,7 @@ public final class DivineFlyingSword extends Projectile {
     }
     /** The target's live aiming point when the plan carries its id, else the locked aim. */
     private Vec3 liveAimPoint() {
-        Entity target=level().getEntity(entityData.get(PLAN).getInt("target"));
+        Entity target=level().getEntity(entityData.get(PLAN).getIntOr("target",0));
         return target instanceof LivingEntity living && living.isAlive()
             ?living.position().add(0,living.getBbHeight()*.5,0):aimPoint();
     }
@@ -174,26 +178,26 @@ public final class DivineFlyingSword extends Projectile {
         if(myriadSword()) {
             YangJian owner=getOwner();
             Vec3 center=owner==null?castingCenter():owner.position().add(0,2.2,0);
-            YangJianEffects.Direction offset=YangJianEffects.myriadOrbit(age,plan.getInt("wave"),plan.getInt("index"));
+            YangJianEffects.Direction offset=YangJianEffects.myriadOrbit(age,plan.getIntOr("wave",0),plan.getIntOr("index",0));
             return center.add(offset.x(),offset.y(),offset.z());
         }
-        double angle=plan.getInt("index")*Math.PI*2/Math.max(1,plan.getInt("count"))
+        double angle=plan.getIntOr("index",0)*Math.PI*2/Math.max(1,plan.getIntOr("count",0))
             +Math.min(YangJianEffects.ORBIT_TICKS,age)*.16;
         return castingCenter().add(Math.cos(angle)*2.1,.5+Math.sin(angle*1.3)*.25,Math.sin(angle)*2.1);
     }
 
     @Override public void tick() {
         super.tick();
-        if(level().isClientSide && !hasPlan())return;
+        if(level().isClientSide() && !hasPlan())return;
         int age=(int)effectAge(0),flightAge=age-releaseTick();
         boolean armed=armed();
-        if(!level().isClientSide) {
+        if(!level().isClientSide()) {
             YangJian owner=getOwner();
             if(expired || (armed && age>=releaseTick()+YangJianEffects.FLIGHT_TICKS) || owner==null || !owner.isAlive()
                     || (!stepThrow() && owner.phase()!=(myriadSword()?3:2)) || owner.isTransitioning() || owner.action()==YangJian.PHASE_CLEAR || owner.isTrialComplete()
                     || !owner.getUUID().equals(casterId) || distanceToSqr(castingCenter())>75*75) { discard();return; }
             if(myriadSword() && !released && (owner.action()!=YangJian.MYRIAD_SWORDS
-                    || owner.attackSequence()!=entityData.get(PLAN).getLong("sequence"))) { discard();return; }
+                    || owner.attackSequence()!=entityData.get(PLAN).getLongOr("sequence",0L))) { discard();return; }
             if(stepThrow()) {
                 Entity target=targetId==null?null:((ServerLevel)level()).getEntity(targetId);
                 if(!(target instanceof LivingEntity player) || !owner.validTarget(player)
@@ -207,14 +211,14 @@ public final class DivineFlyingSword extends Projectile {
             setDeltaMovement(Vec3.ZERO);setPos(orbitPoint(Math.min(YangJianEffects.ORBIT_TICKS,Math.max(0,age))));
             return;
         }
-        if(!level().isClientSide) {
+        if(!level().isClientSide()) {
             YangJian owner=getOwner();
             int lockTick=myriadSword()?releaseTick():YangJianEffects.ORBIT_TICKS;
             // The P2 volley keeps its blade trained on the player for the whole aim window:
             // the stored aim is refreshed every tick, so the shot leaves along the player's
             // live position instead of where they stood when the orbit ended.
             boolean keepAiming=!myriadSword() && !stepThrow() && !released;
-            if(age>=lockTick && (keepAiming || !entityData.get(PLAN).getBoolean("locked"))) {
+            if(age>=lockTick && (keepAiming || !entityData.get(PLAN).getBooleanOr("locked",false))) {
                 Entity target=targetId==null?null:((ServerLevel)level()).getEntity(targetId);
                 if(!(target instanceof LivingEntity player) || !owner.validTarget(player)) { discard();return; }
                 // P3 samples the target at release, after the visible orbit;
@@ -229,7 +233,7 @@ public final class DivineFlyingSword extends Projectile {
         if(age<releaseTick()) {
             setDeltaMovement(Vec3.ZERO);setPos(orbitPoint(age));return;
         }
-        if(!level().isClientSide) {
+        if(!level().isClientSide()) {
             YangJian owner=getOwner();
             if(!released) {
                 if(stepThrow() || myriadSword())setPos(orbitPoint(age));
@@ -241,10 +245,10 @@ public final class DivineFlyingSword extends Projectile {
                 if(direction.lengthSqr()<1E-8) { discard();return; }
                 if(!stepThrow() && owner!=null)owner.leaveSwordLightningTrail(position(),aimPoint());
                 shoot(direction.x,direction.y,direction.z,(float)YangJianEffects.SWORD_SPEED,0);
-                if(!myriadSword() || entityData.get(PLAN).getInt("index")==0)
+                if(!myriadSword() || entityData.get(PLAN).getIntOr("index",0)==0)
                     level().playSound(null,blockPosition(),SoundEvents.TRIDENT_THROW.value(),SoundSource.HOSTILE,myriadSword()?.4F:.65F,1.6F);
                 if(!stepThrow() && !myriadSword() && level() instanceof ServerLevel server)
-                    armNext(server,owner,targetId,entityData.get(PLAN).getInt("index"),entityData.get(PLAN).getInt("count"));
+                    armNext(server,owner,targetId,entityData.get(PLAN).getIntOr("index",0),entityData.get(PLAN).getIntOr("count",0));
             }
             // Start with the locked heading; corrections begin only after the first movement tick.
             if(!stepThrow() && flightAge>0 && flightAge<=YangJianEffects.TRACKING_TICKS && targetId!=null && level() instanceof ServerLevel server) {
@@ -252,7 +256,7 @@ public final class DivineFlyingSword extends Projectile {
                 if(target instanceof LivingEntity player && owner!=null && owner.validTarget(player)) {
                     Vec3 desired=player.position().add(0,player.getBbHeight()*.5,0).subtract(position()).normalize();
                     setDeltaMovement(turnTowards(getDeltaMovement().normalize(),desired).scale(YangJianEffects.SWORD_SPEED));
-                    hasImpulse=true;
+                    needsSync=true;
                 }
             }
             if(!level().hasChunkAt(BlockPos.containing(position().add(getDeltaMovement())))) { discard();return; }
@@ -260,7 +264,7 @@ public final class DivineFlyingSword extends Projectile {
             if(hit.getType()!=HitResult.Type.MISS) {
                 if(!EventHooks.onProjectileImpact(this,hit)) {
                     if(hit instanceof EntityHitResult entityHit && owner!=null)
-                        entityHit.getEntity().hurt(damageSources().mobProjectile(this,owner),damage);
+                        entityHit.getEntity().hurtOrSimulate(damageSources().mobProjectile(this,owner),damage);
                     // One impact ends the sword: no repeated damage, penetration, or blocks modified.
                     discard();return;
                 }
@@ -278,15 +282,15 @@ public final class DivineFlyingSword extends Projectile {
         YangJian owner=getOwner();
         return entity instanceof LivingEntity living && owner!=null && owner.validTarget(living) && super.canHitEntity(entity);
     }
-    @Override public AABB getBoundingBoxForCulling() {
-        return super.getBoundingBoxForCulling().inflate(2);
+    public AABB combatRenderBounds() {
+        return getBoundingBox().inflate(2);
     }
-    @Override protected void addAdditionalSaveData(CompoundTag tag) {
-        super.addAdditionalSaveData(tag);tag.put("SwordPlan",entityData.get(PLAN).copy());tag.putFloat("SwordDamage",damage);
-        if(casterId!=null)tag.putUUID("SwordCaster",casterId);if(targetId!=null)tag.putUUID("SwordTarget",targetId);
+    @Override protected void addAdditionalSaveData(ValueOutput tag) {
+        super.addAdditionalSaveData(tag);tag.store("SwordPlan",CompoundTag.CODEC,entityData.get(PLAN));tag.putFloat("SwordDamage",damage);
+        if(casterId!=null)tag.store("SwordCaster",UUIDUtil.CODEC,casterId);if(targetId!=null)tag.store("SwordTarget",UUIDUtil.CODEC,targetId);
     }
-    @Override protected void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);casterId=tag.hasUUID("SwordCaster")?tag.getUUID("SwordCaster"):null;
+    @Override protected void readAdditionalSaveData(ValueInput tag) {
+        super.readAdditionalSaveData(tag);casterId=tag.read("SwordCaster",UUIDUtil.CODEC).orElse(null);
         // A saved caster cancels its partial attack; its old volley must not reappear on reload.
         expired=true;setNoGravity(true);
     }
@@ -294,6 +298,6 @@ public final class DivineFlyingSword extends Projectile {
         tag.putDouble(name+"X",point.x);tag.putDouble(name+"Y",point.y);tag.putDouble(name+"Z",point.z);
     }
     private static Vec3 point(CompoundTag tag,String name) {
-        return new Vec3(tag.getDouble(name+"X"),tag.getDouble(name+"Y"),tag.getDouble(name+"Z"));
+        return new Vec3(tag.getDoubleOr(name+"X",0.0),tag.getDoubleOr(name+"Y",0.0),tag.getDoubleOr(name+"Z",0.0));
     }
 }

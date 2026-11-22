@@ -2,16 +2,15 @@ package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
+import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
+import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.entity.CogworkDancer;
 import net.xuwu.myriadcalamity.entity.CombatMath;
@@ -20,6 +19,7 @@ import org.joml.Matrix4f;
 /** Frozen, server-planned ground geometry, using the same filled warning style as Time's Keeper. */
 @EventBusSubscriber(modid=MyriadCalamity.ID, value=Dist.CLIENT)
 public final class CogworkTelegraph {
+    private static final ContextKey<CombatGeometry> GEOMETRY=new ContextKey<>(MyriadCalamity.id("cogwork_warnings"));
     private static final double GROUND_OFFSET=0.035;
     /**
      * Warning alphas. The hard edge stroke is gone, so these fills carry all of the readability:
@@ -30,16 +30,12 @@ public final class CogworkTelegraph {
         BOUNDARY_ALPHA=.42F, BOUNDARY_PULSE=.08F, WALL_ALPHA=.09F, WALL_PULSE=.03F;
 
     @SubscribeEvent
-    public static void renderLevel(RenderLevelStageEvent event) {
-        if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_PARTICLES)return;
-        Minecraft minecraft=Minecraft.getInstance();
-        if(minecraft.level==null)return;
-        float partial=event.getPartialTick().getGameTimeDeltaPartialTick(false);
-        Vec3 camera=event.getCamera().getPosition();
-        PoseStack pose=event.getPoseStack();
-        MultiBufferSource.BufferSource buffers=minecraft.renderBuffers().bufferSource();
-        pose.pushPose();
-        for(Entity entity:minecraft.level.entitiesForRendering()) {
+    public static void extract(ExtractLevelRenderStateEvent event) {
+        float partial=event.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        Vec3 camera=event.getCamera().position();
+        PoseStack pose=new PoseStack();
+        CombatGeometry buffers=new CombatGeometry();
+        for(Entity entity:event.getLevel().entitiesForRendering()) {
             // Plan rendering is independent of the moving dancer's visibility/frustum.
             if(entity instanceof CogworkDancer dancer && dancer.isAlive() && dancer.distanceToSqr(camera)<96*96) {
                 // One coordinator owns the ring in the pair; a phase-four survivor owns it alone.
@@ -47,15 +43,20 @@ public final class CogworkTelegraph {
                 render(dancer,partial,pose,buffers,camera);
             }
         }
-        buffers.endBatch(RenderType.debugQuads());
-        pose.popPose();
+        event.getRenderState().setRenderData(GEOMETRY,buffers);
     }
 
-    private static void renderBoundary(CogworkDancer dancer,float partial,PoseStack pose,MultiBufferSource buffers,Vec3 camera) {
+    @SubscribeEvent
+    public static void submit(SubmitCustomGeometryEvent event) {
+        var geometry=event.getLevelRenderState().getRenderData(GEOMETRY);
+        if(geometry!=null)geometry.submit(event.getPoseStack(),event.getSubmitNodeCollector());
+    }
+
+    private static void renderBoundary(CogworkDancer dancer,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
         Vec3 center=dancer.arenaPosition();
         pose.pushPose();
         pose.translate(center.x-camera.x,center.y-camera.y,center.z-camera.z);
-        VertexConsumer vertices=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer vertices=buffers.quads();
         Matrix4f matrix=pose.last().pose();
         int steps=128;
         double radius=CombatMath.FIGHT_BOUNDARY_RADIUS, inner=radius-0.11, outer=radius+0.11;
@@ -78,7 +79,7 @@ public final class CogworkTelegraph {
         pose.popPose();
     }
 
-    private static void render(CogworkDancer dancer,float partial,PoseStack pose,MultiBufferSource buffers,Vec3 camera) {
+    private static void render(CogworkDancer dancer,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
         int action=dancer.action();
         if(action!=CogworkDancer.DASH && action!=CogworkDancer.SLAM && action!=CogworkDancer.SPIN && action!=CogworkDancer.FAILED && action!=CogworkDancer.BARRAGE)return;
         float age=dancer.scheduledActionAge(partial);
@@ -88,7 +89,7 @@ public final class CogworkTelegraph {
         pose.pushPose();
         // Subtract in double precision before the GPU conversion, including far from world origin.
         pose.translate(anchor.x-camera.x,anchor.y-camera.y,anchor.z-camera.z);
-        VertexConsumer vertices=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer vertices=buffers.quads();
         Matrix4f matrix=pose.last().pose();
         if(action==CogworkDancer.BARRAGE) {
             var lanes=dancer.telegraphLanes();
@@ -119,7 +120,7 @@ public final class CogworkTelegraph {
         renderQueued(dancer,partial,pose,buffers,camera);
     }
 
-    private static void renderQueued(CogworkDancer dancer,float partial,PoseStack pose,MultiBufferSource buffers,Vec3 camera) {
+    private static void renderQueued(CogworkDancer dancer,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
         int action=dancer.queuedAction();
         if(action!=CogworkDancer.DASH && action!=CogworkDancer.SLAM && action!=CogworkDancer.SPIN)return;
         float age=dancer.queuedActionAge(partial);
@@ -131,7 +132,7 @@ public final class CogworkTelegraph {
         Vec3 start=dancer.queuedStart(),end=dancer.queuedEnd();
         pose.pushPose();
         pose.translate(end.x-camera.x,end.y-camera.y,end.z-camera.z);
-        VertexConsumer vertices=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer vertices=buffers.quads();
         Matrix4f matrix=pose.last().pose();
         if(action==CogworkDancer.DASH) {
             lane(vertices,matrix,start.subtract(end),Vec3.ZERO,1.35,Mth.clamp(age/windup,0,1),age);

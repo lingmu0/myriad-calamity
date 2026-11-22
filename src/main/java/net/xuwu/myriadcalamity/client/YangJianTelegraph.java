@@ -2,42 +2,47 @@ package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
+import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
+import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.config.MyriadConfig;
 import net.xuwu.myriadcalamity.entity.YangJian;
+import net.xuwu.myriadcalamity.entity.YangJianHazard;
 import org.joml.Matrix4f;
 
 /** Ground warnings read one atomic server plan. No client-generated targets or future plans. */
 @EventBusSubscriber(modid=MyriadCalamity.ID,value=Dist.CLIENT)
 public final class YangJianTelegraph {
+    private static final ContextKey<CombatGeometry> GEOMETRY=new ContextKey<>(MyriadCalamity.id("yang_jian_warnings"));
     private static final double HEIGHT=.045,EDGE=.07;
 
-    @SubscribeEvent public static void renderLevel(RenderLevelStageEvent event) {
-        if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_PARTICLES)return;
-        Minecraft minecraft=Minecraft.getInstance();
-        if(minecraft.level==null)return;
-        float partial=event.getPartialTick().getGameTimeDeltaPartialTick(false);
-        Vec3 camera=event.getCamera().getPosition();
-        PoseStack pose=event.getPoseStack();
-        MultiBufferSource.BufferSource buffers=minecraft.renderBuffers().bufferSource();
-        for(Entity entity:minecraft.level.entitiesForRendering()) {
+    @SubscribeEvent public static void extract(ExtractLevelRenderStateEvent event) {
+        float partial=event.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        Vec3 camera=event.getCamera().position();
+        PoseStack pose=new PoseStack();
+        CombatGeometry buffers=new CombatGeometry();
+        for(Entity entity:event.getLevel().entitiesForRendering()) {
             if(entity instanceof YangJian boss && boss.isAlive() && boss.distanceToSqr(camera)<100*100)
                 render(boss,partial,pose,buffers,camera);
+            else if(entity instanceof YangJianHazard hazard && hazard.distanceToSqr(camera)<128*128)
+                YangJianHazardRenderer.collectBeam(hazard,partial,pose,buffers,camera);
         }
-        buffers.endBatch(RenderType.debugQuads());
+        event.getRenderState().setRenderData(GEOMETRY,buffers);
     }
 
-    private static void render(YangJian boss,float partial,PoseStack pose,MultiBufferSource buffers,Vec3 camera) {
+    @SubscribeEvent public static void submit(SubmitCustomGeometryEvent event) {
+        var geometry=event.getLevelRenderState().getRenderData(GEOMETRY);
+        if(geometry!=null)geometry.submit(event.getPoseStack(),event.getSubmitNodeCollector());
+    }
+
+    private static void render(YangJian boss,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
         if(boss.action()==YangJian.TRANSITION) {
             // The arena-wide slam is the one warning that survives with the indicators off:
             // it cannot be read from the boss's own motion while he is airborne.
@@ -58,7 +63,7 @@ public final class YangJianTelegraph {
         float charge=Mth.clamp(age/windup,0,1);
         pose.pushPose();
         pose.translate(origin.x-camera.x,origin.y-camera.y,origin.z-camera.z);
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer v=buffers.quads();
         Matrix4f matrix=pose.last().pose();
         // Shape and angle are part of the same server plan as the hitbox; P1 and
         // P2 share this path, including the re-locked warning after a short vanish.

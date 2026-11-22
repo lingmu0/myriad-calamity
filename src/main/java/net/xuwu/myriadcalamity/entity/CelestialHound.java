@@ -5,6 +5,9 @@ import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -15,6 +18,8 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.animal.wolf.WolfSoundVariant;
+import net.minecraft.world.entity.animal.wolf.WolfSoundVariants;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
@@ -30,6 +35,7 @@ import net.xuwu.myriadcalamity.config.MyriadConfig;
 
 /** A killable combat partner, with an explicit side-pounce command from Yang Jian. */
 public final class CelestialHound extends Monster {
+    static final WolfSoundVariant.WolfSoundSet SOUNDS=SoundEvents.WOLF_SOUNDS.get(WolfSoundVariants.SoundSet.CLASSIC).adultSounds();
     public static final int IDLE=0,STALK=1,WINDUP=2,POUNCE=3,RETREAT=4;
     public static final int WINDUP_TICKS=10,POUNCE_TICKS=8,MARK_TICKS=80;
     private static final EntityDataAccessor<Integer> ACTION=SynchedEntityData.defineId(CelestialHound.class,EntityDataSerializers.INT);
@@ -64,7 +70,7 @@ public final class CelestialHound extends Monster {
         ownerId=owner.getUUID();targetId=target.getUUID();initialize();setAction(STALK);
     }
     private void initialize() {
-        if(initialized || level().isClientSide)return;
+        if(initialized || level().isClientSide())return;
         initialized=true;getAttribute(Attributes.MAX_HEALTH).setBaseValue(MyriadConfig.houndHealth());
         getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(MyriadConfig.houndDamage());setHealth(getMaxHealth());
     }
@@ -75,8 +81,8 @@ public final class CelestialHound extends Monster {
         targetId=target.getUUID();coordinatedTicks=10;delay=0;setNoGravity(false);setAction(STALK);
     }
     private void setAction(int action) { entityData.set(ACTION,action);entityData.set(STARTED,level().getGameTime()); }
-    @Override protected void customServerAiStep() {
-        super.customServerAiStep();initialize();
+    @Override protected void customServerAiStep(ServerLevel currentLevel) {
+        super.customServerAiStep(currentLevel);initialize();
         YangJian owner=ownerBoss();
         if(--life<=0 || owner!=null && (!owner.ownsHound(getUUID()) || owner.isTrialComplete() || owner.action()==YangJian.PHASE_CLEAR)) { discard();return; }
         if(owner==null) { getNavigation().stop();if(++orphanTicks>60)discard();return; }
@@ -113,10 +119,10 @@ public final class CelestialHound extends Monster {
                 double radius=.8+victim.getBbWidth()*.5;
                 if(victim.getY()+victim.getBbHeight()<Math.min(old.y,getY()) || victim.getY()>Math.max(old.y,getY())+1.5)continue;
                 if(CombatMath.segmentDistanceSquared(victim.getX(),victim.getZ(),old.x,old.z,getX(),getZ())<=radius*radius && pounceHits.add(victim.getUUID()) && hasLineOfSight(victim)) {
-                    if(victim.hurt(damageSources().mobAttack(this),(float)getAttributeValue(Attributes.ATTACK_DAMAGE))) {
+                    if(victim.hurtOrSimulate(damageSources().mobAttack(this),(float)getAttributeValue(Attributes.ATTACK_DAMAGE))) {
                         victim.addEffect(new MobEffectInstance(MyriadCalamity.ROAR_MARK,MARK_TICKS,0,false,true,true),this);
                         victim.knockback(.35F,getX()-victim.getX(),getZ()-victim.getZ());victim.hurtMarked=true;
-                        playSound(SoundEvents.WOLF_GROWL,1,.9F);
+                        playSound(SOUNDS.growlSound().value(),1,.9F);
                     }
                 }
             }
@@ -150,7 +156,7 @@ public final class CelestialHound extends Monster {
         jumpStart=position();Vec3 desired=owner.clampPoint(target.position());
         Vec3 delta=desired.subtract(jumpStart);if(delta.horizontalDistance()>9)delta=delta.normalize().scale(9);
         jumpEnd=jumpStart.add(delta);pounceHits.clear();getNavigation().stop();setDeltaMovement(Vec3.ZERO);
-        face(jumpEnd);setAction(WINDUP);playSound(SoundEvents.WOLF_GROWL,.9F,.65F);
+        face(jumpEnd);setAction(WINDUP);playSound(SOUNDS.growlSound().value(),.9F,.65F);
     }
     private void moveWithinArena(YangJian owner,Vec3 delta) {
         Vec3 desired=position().add(delta),clamped=owner.clampPoint(desired);
@@ -162,16 +168,16 @@ public final class CelestialHound extends Monster {
         setYRot(yaw);yBodyRot=yaw;yHeadRot=yaw;
     }
     @Override public boolean removeWhenFarAway(double distance) { return false; }
-    @Override public boolean causeFallDamage(float distance,float multiplier,DamageSource source) { return false; }
-    @Override protected SoundEvent getHurtSound(DamageSource source) { return SoundEvents.WOLF_HURT; }
-    @Override protected SoundEvent getDeathSound() { return SoundEvents.WOLF_DEATH; }
-    @Override public void addAdditionalSaveData(CompoundTag tag) {
-        super.addAdditionalSaveData(tag);if(ownerId!=null)tag.putUUID("YangJianOwner",ownerId);if(targetId!=null)tag.putUUID("HoundTarget",targetId);
+    @Override public boolean causeFallDamage(double distance,float multiplier,DamageSource source) { return false; }
+    @Override protected SoundEvent getHurtSound(DamageSource source) { return SOUNDS.hurtSound().value(); }
+    @Override protected SoundEvent getDeathSound() { return SOUNDS.deathSound().value(); }
+    @Override public void addAdditionalSaveData(ValueOutput tag) {
+        super.addAdditionalSaveData(tag);if(ownerId!=null)tag.store("YangJianOwner",UUIDUtil.CODEC,ownerId);if(targetId!=null)tag.store("HoundTarget",UUIDUtil.CODEC,targetId);
         tag.putInt("HoundLife",life);tag.putBoolean("HoundInitialized",initialized);
     }
-    @Override public void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);ownerId=tag.hasUUID("YangJianOwner")?tag.getUUID("YangJianOwner"):null;
-        targetId=tag.hasUUID("HoundTarget")?tag.getUUID("HoundTarget"):null;life=Math.clamp(tag.getInt("HoundLife"),0,1800);
-        initialized=tag.getBoolean("HoundInitialized");setNoGravity(false);setAction(STALK);delay=25;coordinatedTicks=0;pounceHits.clear();
+    @Override public void readAdditionalSaveData(ValueInput tag) {
+        super.readAdditionalSaveData(tag);ownerId=tag.read("YangJianOwner",UUIDUtil.CODEC).orElse(null);
+        targetId=tag.read("HoundTarget",UUIDUtil.CODEC).orElse(null);life=Math.clamp(tag.getIntOr("HoundLife",0),0,1800);
+        initialized=tag.getBooleanOr("HoundInitialized",false);setNoGravity(false);setAction(STALK);delay=25;coordinatedTicks=0;pounceHits.clear();
     }
 }

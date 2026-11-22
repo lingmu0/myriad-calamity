@@ -11,18 +11,20 @@ def check(ok,message):
     if not ok:raise AssertionError(message)
 def read_png(p):
     data=p.read_bytes();check(data[:8]==b'\x89PNG\r\n\x1a\n',f'PNG signature: {p}')
-    at=8;stream=b'';width=height=0
+    at=8;stream=b'';width=height=channels=0
     while at<len(data):
         n=struct.unpack('>I',data[at:at+4])[0];tag=data[at+4:at+8];block=data[at+8:at+8+n]
         crc=struct.unpack('>I',data[at+8+n:at+12+n])[0]
         check(zlib.crc32(tag+block)&0xffffffff==crc,f'PNG checksum: {p}')
         if tag==b'IHDR':
-            width,height,depth,kind,_,_,_=struct.unpack('>IIBBBBB',block)
-            check(depth==8 and kind==6,f'RGBA PNG: {p}')
+            width,height,depth,kind,_,_,interlace=struct.unpack('>IIBBBBB',block)
+            opaque_atlas=p==RES/f'assets/{NS}/textures/entity/yang_jian.png'
+            check(depth==8 and interlace==0 and (kind==6 or opaque_atlas and kind==2),f'PNG color format: {p}')
+            channels=3 if kind==2 else 4
         if tag==b'IDAT':stream+=block
         at+=12+n
     raw=zlib.decompress(stream)
-    check(len(raw)==height*(1+width*4),f'PNG scanline size: {p}')
+    check(len(raw)==height*(1+width*channels),f'PNG scanline size: {p}')
     return width,height
 jsons={str(p.relative_to(RES)).replace('\\','/'):json.loads(p.read_text('utf8')) for p in RES.rglob('*.json')}
 langs=[jsons[f'assets/{NS}/lang/{lang}.json'] for lang in ['zh_cn','en_us']]
@@ -31,6 +33,8 @@ for phase in range(1,5):check(f'boss.{NS}.phase{phase}' in langs[0],f'Phase {pha
 for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_talisman','divine_sigil','yang_jian_spawn_egg']:
     model=jsons[f'assets/{NS}/models/item/{name}.json']
     check(f'item.{NS}.{name}' in langs[0],f'Item name: {name}')
+    definition=jsons[f'assets/{NS}/items/{name}.json']['model']
+    check(definition=={'type':'minecraft:model','model':f'{NS}:item/{name}'},f'26.1.2 item definition: {name}')
     for texture in model.get('textures',{}).values():
         namespace,relative=texture.split(':')
         if namespace==NS:check((RES/f'assets/{NS}/textures/{relative}.png').exists(),f'Model texture: {texture}')
@@ -39,7 +43,8 @@ for png in RES.rglob('*.png'):
     expected = {'yang_jian.png': (2048,2048), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
     check(dimensions==expected.get(png.name, (256,256) if png.parent.name=='entity' else (32,32)),f'Texture dimensions: {png}')
 recipe=jsons[f'data/{NS}/recipe/winding_key.json']
-check(recipe['result']['id']==f'{NS}:winding_key','1.21 recipe item id')
+check(recipe['result']['id']==f'{NS}:winding_key','26.1.2 recipe item id')
+check(all(isinstance(value,str) for value in recipe['key'].values()),'26.1.2 recipe ingredients')
 check(set(''.join(recipe['pattern']))-{' '}==recipe['key'].keys(),'Recipe key coverage')
 loot=jsons[f'data/{NS}/loot_table/entities/cogwork_dancer.json']
 check(all(any(c.get('predicate',{}).get('nbt')=='{Solo:1b}' for c in pool['conditions']) for pool in loot['pools']),'Only the final survivor drops loot')
@@ -85,7 +90,7 @@ for key,name in [('music.yang_jian_bgm_intro','yang_jian_bgm_intro'),('music.yan
 for ref in jsons[f'assets/{NS}/models/block/dance_altar.json']['textures'].values():
  if ref.startswith(NS+':'):check((RES/f'assets/{NS}/textures/{ref.split(":",1)[1]}.png').exists(),'Altar texture exists')
 mesh=jsons[f'assets/{NS}/mesh/cogwork_dancer.json']
-clips=jsons[f'assets/{NS}/animations/cogwork_dancer.json']['clips']
+clips=jsons[f'assets/{NS}/boss_animations/cogwork_dancer.json']['clips']
 names=set();face_count=0
 import math
 def inspect_bone(bone):
@@ -125,7 +130,7 @@ with zipfile.ZipFile(jars[0]) as jar:
     for name in ['MyriadCalamity','entity/CogworkDancer','entity/CombatMath','client/ClientEvents','client/CogworkDancerModel','client/CogworkDancerRenderer','item/WindingKeyItem','client/AnimationTrack','client/AnimationPlayback','client/CogworkTelegraph','entity/CogworkBlade','client/CogworkBladeRenderer','block/DanceAltarBlock','world/ModStructures','world/CogworkTheatreStructure','world/CogworkTheatrePiece','world/DanceEncounters','world/TheatreLayout','config/MyriadConfig']:
         entry=f'net/xuwu/myriadcalamity/{name}.class'
         check(entry in names,f'Packaged class {name}')
-        check(struct.unpack('>H',jar.read(entry)[6:8])[0]==65,f'Java 21 class {name}')
+        check(struct.unpack('>H',jar.read(entry)[6:8])[0]==69,f'Java 25 class {name}')
     for name in ['entity/YangJian','entity/YangJianSkill','entity/YangJianTransition','entity/YangJianDefense','entity/YangJianDefenseEvents','entity/CelestialHound','entity/TriPointedBlade',
                  'entity/DivineFlyingSword','entity/LightningTrail','entity/YangJianEffects',
                  'entity/YangJianHazard','entity/YangJianHazardMath','entity/YangJianPhaseThree','entity/YangJianFootwork','client/YangJianHazardRenderer',
@@ -135,7 +140,7 @@ with zipfile.ZipFile(jars[0]) as jar:
                  'client/CelestialHoundRenderer','client/CelestialHoundModel','client/TriPointedBladeRenderer','client/CloudRealmEffects']:
         entry=f'net/xuwu/myriadcalamity/{name}.class'
         check(entry in names,f'Packaged Yang Jian class {name}')
-        check(struct.unpack('>H',jar.read(entry)[6:8])[0]==65,f'Java 21 Yang Jian class {name}')
+        check(struct.unpack('>H',jar.read(entry)[6:8])[0]==69,f'Java 25 Yang Jian class {name}')
     metadata=jar.read('META-INF/neoforge.mods.toml').decode('utf8')
     check('${' not in metadata,'Expanded metadata')
     check(re.search(r'\bversion\s*=\s*"'+re.escape(version)+r'"',metadata),'JAR metadata matches release version')

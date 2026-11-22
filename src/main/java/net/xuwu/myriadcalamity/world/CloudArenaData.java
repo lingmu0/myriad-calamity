@@ -5,7 +5,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import net.minecraft.core.HolderLookup;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.resources.Identifier;
+import net.xuwu.myriadcalamity.MyriadCalamity;
+import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -14,6 +17,9 @@ import net.minecraft.world.level.saveddata.SavedData;
 
 /** Stored in the overworld so return tickets survive death, logout and dimension unloading. */
 public final class CloudArenaData extends SavedData {
+    private static final SavedDataType<CloudArenaData> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(MyriadCalamity.ID,"cloud_arena"),
+        level -> LegacySavedData.load(level,"myriad_calamity_cloud_arena",CloudArenaData::load,CloudArenaData::new),
+        level -> CompoundTag.CODEC.xmap(CloudArenaData::load,CloudArenaData::save));
     boolean built;
     UUID owner;
     UUID boss;
@@ -27,25 +33,25 @@ public final class CloudArenaData extends SavedData {
     public record ReturnPoint(String dimension, double x, double y, double z, float yaw, float pitch) {}
 
     public static CloudArenaData get(MinecraftServer server) {
-        return server.overworld().getDataStorage().computeIfAbsent(
-            new Factory<>(CloudArenaData::new, CloudArenaData::load), "myriad_calamity_cloud_arena");
+        return server.overworld().getDataStorage().computeIfAbsent(TYPE);
     }
 
-    public static CloudArenaData load(CompoundTag tag, HolderLookup.Provider registries) {
+    public static CloudArenaData load(CompoundTag tag) {
         CloudArenaData data = new CloudArenaData();
-        data.built = tag.getBoolean("Built");
-        data.owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
-        data.boss = tag.hasUUID("Boss") ? tag.getUUID("Boss") : null;
-        data.fighting = tag.getBoolean("Fighting") && data.owner != null;
-        data.startsAt = tag.getLong("StartsAt");
-        data.createdAt = tag.getLong("CreatedAt");
-        for (Tag entry : tag.getList("Returns", Tag.TAG_COMPOUND)) {
-            CompoundTag point = (CompoundTag) entry;
-            if (!point.hasUUID("Player")) continue;
-            double x = point.getDouble("X"), y = point.getDouble("Y"), z = point.getDouble("Z");
+        data.built = tag.getBooleanOr("Built",false);
+        data.owner = tag.read("Owner",UUIDUtil.CODEC).orElse(null);
+        data.boss = tag.read("Boss",UUIDUtil.CODEC).orElse(null);
+        data.fighting = tag.getBooleanOr("Fighting",false) && data.owner != null;
+        data.startsAt = tag.getLongOr("StartsAt",0L);
+        data.createdAt = tag.getLongOr("CreatedAt",0L);
+        for (Tag entry : tag.getListOrEmpty("Returns")) {
+            if (!(entry instanceof CompoundTag point)) continue;
+            UUID playerId=point.read("Player",UUIDUtil.CODEC).orElse(null);
+            if (playerId==null) continue;
+            double x = point.getDoubleOr("X",0.0), y = point.getDoubleOr("Y",0.0), z = point.getDoubleOr("Z",0.0);
             if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) continue;
-            float yaw = point.getFloat("Yaw"), pitch = point.getFloat("Pitch");
-            data.returns.put(point.getUUID("Player"), new ReturnPoint(point.getString("Dimension"),
+            float yaw = point.getFloatOr("Yaw",0F), pitch = point.getFloatOr("Pitch",0F);
+            data.returns.put(playerId, new ReturnPoint(point.getStringOr("Dimension",""),
                 x, y, z, Float.isFinite(yaw) ? yaw : 0, Float.isFinite(pitch) ? pitch : 0));
         }
         readIds(tag, "Rewarded", data.rewarded);
@@ -54,9 +60,9 @@ public final class CloudArenaData extends SavedData {
     }
 
     private static void readIds(CompoundTag tag, String name, Set<UUID> target) {
-        for (Tag entry : tag.getList(name, Tag.TAG_COMPOUND)) {
-            CompoundTag player = (CompoundTag) entry;
-            if (player.hasUUID("Player")) target.add(player.getUUID("Player"));
+        for (Tag entry : tag.getListOrEmpty(name)) {
+            if (!(entry instanceof CompoundTag player)) continue;
+            player.read("Player",UUIDUtil.CODEC).ifPresent(target::add);
         }
     }
 
@@ -64,24 +70,24 @@ public final class CloudArenaData extends SavedData {
         ListTag list = new ListTag();
         for (UUID id : ids) {
             CompoundTag tag = new CompoundTag();
-            tag.putUUID("Player", id);
+            tag.store("Player",UUIDUtil.CODEC,id);
             list.add(tag);
         }
         return list;
     }
 
-    @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+    public CompoundTag save() {
+        CompoundTag tag=new CompoundTag();
         tag.putBoolean("Built", built);
-        if (owner != null) tag.putUUID("Owner", owner);
-        if (boss != null) tag.putUUID("Boss", boss);
+        if (owner != null) tag.store("Owner",UUIDUtil.CODEC,owner);
+        if (boss != null) tag.store("Boss",UUIDUtil.CODEC,boss);
         tag.putBoolean("Fighting", fighting);
         tag.putLong("StartsAt", startsAt);
         tag.putLong("CreatedAt", createdAt);
         ListTag list = new ListTag();
         returns.forEach((id, point) -> {
             CompoundTag entry = new CompoundTag();
-            entry.putUUID("Player", id);
+            entry.store("Player",UUIDUtil.CODEC,id);
             entry.putString("Dimension", point.dimension());
             entry.putDouble("X", point.x());
             entry.putDouble("Y", point.y());

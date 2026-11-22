@@ -2,8 +2,6 @@ package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.entity.YangJian;
@@ -50,14 +48,14 @@ final class YangJianTransitionEffects {
     }
 
     /** Called from the world render stage, including when the airborne boss is outside the camera. */
-    static void ground(YangJian boss,float partial,PoseStack pose,MultiBufferSource buffers,Vec3 camera) {
+    static void ground(YangJian boss,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
         float age=boss.actionAge(partial);
         if(age<0 || age>=YangJianTransition.DURATION)return;
         Vec3 center=boss.transitionCenter();
         double radius=boss.transitionRadius();
         if(!Double.isFinite(center.x+center.y+center.z+radius) || radius<=0 || radius>40)return;
         pose.pushPose();pose.translate(center.x-camera.x,center.y-camera.y,center.z-camera.z);
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer v=buffers.quads();
         Matrix4f m=pose.last().pose();
         if(age>=YangJianTransition.SUMMON_START && age<YangJianTransition.IMPACT) {
             float progress=Mth.clamp((age-YangJianTransition.SUMMON_START)

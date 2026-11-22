@@ -5,10 +5,15 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -25,7 +30,7 @@ import net.xuwu.myriadcalamity.MyriadCalamity;
  * summon, and only bites bodies that are still standing in it.
  */
 public final class LightningTrail extends Entity {
-    private static final EntityDataAccessor<CompoundTag> ROUTE=SynchedEntityData.defineId(LightningTrail.class,EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<CompoundTag> ROUTE=SynchedEntityData.defineId(LightningTrail.class,MyriadCalamity.PLAN_SERIALIZER.get());
     private static final Map<ServerLevel,YangJianEffects.DamageWindow> HIT_WINDOWS=new WeakHashMap<>();
     @Nullable private UUID casterId;
     private float damage=4;
@@ -49,7 +54,7 @@ public final class LightningTrail extends Entity {
         // The theatre floor is flat, so one ground sample anchors the whole footprint.
         Vec3 ground=ground(level,owner,center);
         if(ground==null)return false;
-        LightningTrail trail=MyriadCalamity.LIGHTNING_TRAIL.get().create(level);if(trail==null)return false;
+        LightningTrail trail=MyriadCalamity.LIGHTNING_TRAIL.get().create(level,EntitySpawnReason.EVENT);if(trail==null)return false;
         trail.casterId=owner.getUUID();trail.damage=damage;
         CompoundTag route=new CompoundTag();
         route.putInt("shape",shape);route.putFloat("radius",(float)radius);route.putFloat("angle",(float)arcDegrees);
@@ -71,15 +76,15 @@ public final class LightningTrail extends Entity {
         Entity owner=server.getEntity(casterId);return owner instanceof YangJian boss?boss:null;
     }
     public boolean hasRoute() { return entityData.get(ROUTE).contains("time"); }
-    public int shape() { return entityData.get(ROUTE).getInt("shape"); }
-    public float scarRadius() { return entityData.get(ROUTE).getFloat("radius"); }
-    public float scarAngle() { return entityData.get(ROUTE).getFloat("angle"); }
+    public int shape() { return entityData.get(ROUTE).getIntOr("shape",0); }
+    public float scarRadius() { return entityData.get(ROUTE).getFloatOr("radius",0F); }
+    public float scarAngle() { return entityData.get(ROUTE).getFloatOr("angle",0F); }
     public Vec3 anchor() { return point(entityData.get(ROUTE),"s"); }
     public Vec3 scarEnd() { return point(entityData.get(ROUTE),"e"); }
     public Vec3 scarCenter() { return point(entityData.get(ROUTE),"p"); }
     public double groundY() { return anchor().y; }
-    public float effectAge(float partial) { return Math.max(0,level().getGameTime()-entityData.get(ROUTE).getLong("time")+partial); }
-    public int lifetime() { return entityData.get(ROUTE).getInt("life"); }
+    public float effectAge(float partial) { return Math.max(0,level().getGameTime()-entityData.get(ROUTE).getLongOr("time",0L)+partial); }
+    public int lifetime() { return entityData.get(ROUTE).getIntOr("life",0); }
     /** A scar with no lifetime waits for the next axe summon instead of expiring on a timer. */
     public boolean persistent() { return lifetime()==LightningScar.PERSISTENT; }
     /** True while the scar is still allowed to exist: used by the renderer and the damage pass. */
@@ -111,12 +116,14 @@ public final class LightningTrail extends Entity {
             if(server.clip(new ClipContext(center.add(0,.4,0),player.position().add(0,.4,0),
                     ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,this)).getType()!=HitResult.Type.MISS)continue;
             if(hits.claim(owner.getUUID(),player.getUUID(),server.getGameTime()))
-                player.hurt(damageSources().lightningBolt(),damage);
+                player.hurtOrSimulate(damageSources().lightningBolt(),damage);
         }
     }
     @Override public boolean isPickable() { return false; }
-    @Override public AABB getBoundingBoxForCulling() {
-        if(!hasRoute())return super.getBoundingBoxForCulling();
+    @Override public boolean hurtServer(ServerLevel level,DamageSource source,float amount) { return false; }
+
+    public AABB combatRenderBounds() {
+        if(!hasRoute())return getBoundingBox();
         Vec3 anchor=anchor(),end=scarEnd(),center=scarCenter();
         double reach=scarRadius()+1;
         return new AABB(Math.min(anchor.x,Math.min(end.x,center.x))-reach,groundY(),
@@ -124,12 +131,12 @@ public final class LightningTrail extends Entity {
             Math.max(anchor.x,Math.max(end.x,center.x))+reach,groundY()+LightningScar.PILLAR_HEIGHT+1,
             Math.max(anchor.z,Math.max(end.z,center.z))+reach);
     }
-    @Override protected void addAdditionalSaveData(CompoundTag tag) {
-        tag.put("LightningRoute",entityData.get(ROUTE).copy());tag.putFloat("LightningDamage",damage);
-        if(casterId!=null)tag.putUUID("LightningCaster",casterId);
+    @Override protected void addAdditionalSaveData(ValueOutput tag) {
+        tag.store("LightningRoute",CompoundTag.CODEC,entityData.get(ROUTE));tag.putFloat("LightningDamage",damage);
+        if(casterId!=null)tag.store("LightningCaster",UUIDUtil.CODEC,casterId);
     }
-    @Override protected void readAdditionalSaveData(CompoundTag tag) {
-        casterId=tag.hasUUID("LightningCaster")?tag.getUUID("LightningCaster"):null;
+    @Override protected void readAdditionalSaveData(ValueInput tag) {
+        casterId=tag.read("LightningCaster",UUIDUtil.CODEC).orElse(null);
         // Reloading cancels old attack remnants together with the caster's interrupted action.
         expired=true;setNoGravity(true);noPhysics=true;
     }
@@ -138,6 +145,6 @@ public final class LightningTrail extends Entity {
         tag.putDouble(name+"X",p.x);tag.putDouble(name+"Y",p.y);tag.putDouble(name+"Z",p.z);
     }
     private static Vec3 point(CompoundTag tag,String name) {
-        return new Vec3(tag.getDouble(name+"X"),tag.getDouble(name+"Y"),tag.getDouble(name+"Z"));
+        return new Vec3(tag.getDoubleOr(name+"X",0.0),tag.getDoubleOr(name+"Y",0.0),tag.getDoubleOr(name+"Z",0.0));
     }
 }

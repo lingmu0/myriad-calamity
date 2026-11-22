@@ -2,8 +2,7 @@ package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -15,19 +14,21 @@ import org.joml.Quaternionf;
 
 /** Small immediate weapon effects; persistent damaging trails have their own server entities. */
 final class YangJianCombatEffects {
-    static void render(YangJian boss,YangJianModel model,float partial,PoseStack pose,MultiBufferSource buffers) {
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
+    static void render(YangJian boss,YangJianModel model,float partial,PoseStack pose,CombatGeometry buffers) {
+        boolean stroke=switch(boss.action()) {
+            case YangJian.COMBO,YangJian.FOUR_COMBO,YangJian.SIX_COMBO,YangJian.COUNTER,
+                 YangJian.THRUST,YangJian.LIGHTNING_THRUST,YangJian.DIVINE_SWEEP -> true;
+            default -> false;
+        };
+        if(!stroke && boss.phase()<2 && boss.action()!=YangJian.TRANSITION)return;
+        VertexConsumer v=buffers.quads();
         Matrix4f m=pose.last().pose();
         float age=boss.actionAge(partial);
         eyeCharge(boss,model,partial,v,m);
         if(boss.phase()==3 || boss.action()==YangJian.THIRD_EYE_OPEN)divine(boss,model,partial,age,v,m);
         if(boss.action()==YangJian.SWEEP_BEAM && boss.hasSweepClone()) {
             sweepCloneVeil(boss,partial,pose,v);
-            // Switching from debug quads to the translucent model ends the
-            // current BufferBuilder. Reacquire debug quads before any later
-            // effect writes to it.
             sweepCloneModel(boss,model,partial,pose,buffers);
-            v=buffers.getBuffer(RenderType.debugQuads());
         }
         if(boss.phase()==2 && boss.axeTrailCharges()>0)axeAftershock(boss,partial,v,m);
         if(boss.weapon()==3 && !boss.weaponThrown())whip(boss,model,partial,v,m);
@@ -44,6 +45,8 @@ final class YangJianCombatEffects {
         YangJianSkill skill=YangJianSkill.forAction(boss.action());
         if(skill==null)return;
         float active=boss.stepAge(partial)-boss.stepWindup();
+        if(stroke && boss.weapon()==0 && !boss.weaponThrown() && active>=0 && active<skill.stepActive(boss.comboStep()))
+            spearStroke(boss,model,partial,age,active,v,m);
         if(boss.action()==YangJian.DRAW_SLASH && active>=0 && active<4) {
             double heading=Math.atan2(boss.dashEnd().z-boss.dashStart().z,boss.dashEnd().x-boss.dashStart().x);
             double radius=boss.telegraphRadius();
@@ -68,6 +71,39 @@ final class YangJianCombatEffects {
                 beam(v,m,center.add(0,.2,0),mid,.025,((int)(fade*210)<<24)|0xA8E8FF);
                 beam(v,m,mid,end,.018,((int)(fade*170)<<24)|0xD6F8FF);
             }
+        }
+    }
+
+    private static void spearStroke(YangJian boss,YangJianModel model,float partial,float age,float active,
+                                    VertexConsumer v,Matrix4f m) {
+        boolean divine=boss.action()==YangJian.DIVINE_SWEEP;
+        float yaw=Mth.rotLerp(partial,boss.yBodyRotO,boss.yBodyRot);
+        float span=Math.min(active+1.2F,2.25F);
+        YangJianModel.BladeEdge edge=model.bladeEdge(yaw,0,divine?YangJianSkill.divineSweepWeaponLength(age):1);
+        double tipRadius=edge.tip().horizontalDistance();
+        if(divine && tipRadius>.1 && tipRadius<boss.telegraphRadius()) {
+            double reach=boss.telegraphRadius()/tipRadius;
+            Vec3 end=new Vec3(edge.tip().x*reach,YangJianSkill.DIVINE_SWEEP_HEIGHT,edge.tip().z*reach);
+            Vec3 axis=end.subtract(edge.tip()).normalize();
+            Vec3 side=axis.cross(Math.abs(axis.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize();
+            Vec3 up=axis.cross(side),previous=edge.tip();
+            for(int i=1;i<=7;i++) {
+                double t=i/7D,amp=.13*Math.sin(Math.PI*t),phase=age*1.55+i*2.41;
+                Vec3 point=edge.tip().lerp(end,t).add(side.scale(amp*Math.cos(phase))).add(up.scale(amp*Math.sin(phase)));
+                beam(v,m,previous,point,.042,0xAAA81338);
+                beam(v,m,previous,point,.015,0xFFFDA6A8);
+                previous=point;
+            }
+        }
+        // Sample the current swing only. Repeated renders and teleports cannot join two attacks.
+        for(int i=1;i<=4;i++) {
+            float back=span*i/4;
+            YangJianModel.BladeEdge old=model.bladeEdge(yaw,back,divine?YangJianSkill.divineSweepWeaponLength(age-back):1);
+            int alpha=90-i*16,color=(alpha<<24)|(divine?0xF24352:0xD5C29B);
+            point(v,m,edge.heel(),color);point(v,m,edge.tip(),color);
+            point(v,m,old.tip(),color);point(v,m,old.heel(),color);
+            beam(v,m,edge.tip(),old.tip(),divine?.020:.013,((alpha+28)<<24)|(divine?0xFFA4AD:0xFFF4D9));
+            edge=old;
         }
     }
 
@@ -107,7 +143,7 @@ final class YangJianCombatEffects {
         }
     }
 
-    private static void sweepCloneModel(YangJian boss,YangJianModel model,float partial,PoseStack pose,MultiBufferSource buffers) {
+    private static void sweepCloneModel(YangJian boss,YangJianModel model,float partial,PoseStack pose,CombatGeometry buffers) {
         Vec3 now=new Vec3(Mth.lerp(partial,boss.xOld,boss.getX()),Mth.lerp(partial,boss.yOld,boss.getY()),Mth.lerp(partial,boss.zOld,boss.getZ()));
         Vec3 clone=boss.sweepClone();
         pose.pushPose();pose.translate(clone.x-now.x,clone.y-now.y,clone.z-now.z);
@@ -117,9 +153,9 @@ final class YangJianCombatEffects {
         // upright instead of turning the whole rig upside down.
         pose.scale(-1F,-1F,1F);pose.scale(YangJianRenderer.MODEL_SCALE,YangJianRenderer.MODEL_SCALE,YangJianRenderer.MODEL_SCALE);
         pose.translate(0,-1.501,0);
-        VertexConsumer ghost=buffers.getBuffer(RenderType.entityTranslucent(YangJianRenderer.TEXTURE));
-        model.renderBeamClone(pose,ghost,15728880,OverlayTexture.NO_OVERLAY,0x35FFFFFF,
-            boss.sweepCloneYaw(),boss.cloneBeam(),partial);
+        RiggedBossRenderer.Mesh cloneMesh=model.beamClone(boss.sweepCloneYaw(),boss.cloneBeam(),partial);
+        buffers.mesh(pose,RenderTypes.entityTranslucent(YangJianRenderer.TEXTURE),(stack,vertices)->
+            cloneMesh.draw(stack,vertices,15728880,OverlayTexture.NO_OVERLAY,0x35FFFFFF));
         pose.popPose();
     }
 

@@ -17,7 +17,7 @@ public final class CogworkTheatreStructure extends Structure {
             int y=context.chunkGenerator().getFirstOccupiedHeight(x+dx,z+dz,Heightmap.Types.WORLD_SURFACE_WG,context.heightAccessor(),context.randomState());
             low=Math.min(low,y); high=Math.max(high,y);
         }
-        if(high-low>7 || low<context.chunkGenerator().getSeaLevel() || high+14>=context.heightAccessor().getMaxBuildHeight()) return Optional.empty();
+        if(high-low>7 || low<context.chunkGenerator().getSeaLevel() || high+14>context.heightAccessor().getMaxY()) return Optional.empty();
         BlockPos centre=new BlockPos(x,high,z);
         return Optional.of(new GenerationStub(centre,builder->builder.addPiece(new CogworkTheatrePiece(centre))));
     }

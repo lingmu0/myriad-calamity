@@ -11,6 +11,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
@@ -26,6 +29,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -46,10 +50,10 @@ public final class CogworkDancer extends Monster {
     private static final EntityDataAccessor<Integer> PHASE=SynchedEntityData.defineId(CogworkDancer.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> FOLLOWER=SynchedEntityData.defineId(CogworkDancer.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Long> STARTED=SynchedEntityData.defineId(CogworkDancer.class, EntityDataSerializers.LONG);
-    private static final EntityDataAccessor<CompoundTag> ATTACK_PLAN=SynchedEntityData.defineId(CogworkDancer.class, EntityDataSerializers.COMPOUND_TAG);
-    private static final EntityDataAccessor<CompoundTag> ARENA_DATA=SynchedEntityData.defineId(CogworkDancer.class, EntityDataSerializers.COMPOUND_TAG);
-    private static final EntityDataAccessor<CompoundTag> NEXT_PLAN=SynchedEntityData.defineId(CogworkDancer.class, EntityDataSerializers.COMPOUND_TAG);
-    private final ServerBossEvent bossBar=new ServerBossEvent(Component.translatable("entity.myriad_calamity.cogwork_dancer"), BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
+    private static final EntityDataAccessor<CompoundTag> ATTACK_PLAN=SynchedEntityData.defineId(CogworkDancer.class, MyriadCalamity.PLAN_SERIALIZER.get());
+    private static final EntityDataAccessor<CompoundTag> ARENA_DATA=SynchedEntityData.defineId(CogworkDancer.class, MyriadCalamity.PLAN_SERIALIZER.get());
+    private static final EntityDataAccessor<CompoundTag> NEXT_PLAN=SynchedEntityData.defineId(CogworkDancer.class, MyriadCalamity.PLAN_SERIALIZER.get());
+    private final ServerBossEvent bossBar=new ServerBossEvent(UUID.randomUUID(),Component.translatable("entity.myriad_calamity.cogwork_dancer"), BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
     private final Set<UUID> hitThisAttack=new HashSet<>();
     @Nullable private UUID partnerId;
     @Nullable private BlockPos summoningAltar;
@@ -94,15 +98,15 @@ public final class CogworkDancer extends Monster {
     public int phase() { return entityData.get(PHASE); }
     /** Every move, including the interwoven dash barrage, telegraphs for its own phase's windup. */
     public int attackWindup() { return CombatMath.windup(phase()); }
-    public int queuedAction() { return entityData.get(NEXT_PLAN).getInt("a"); }
+    public int queuedAction() { return entityData.get(NEXT_PLAN).getIntOr("a",0); }
     public int queuedAttackWindup() { return CombatMath.windup(phase()); }
     public float queuedActionAge(float partial) {
         CompoundTag plan=entityData.get(NEXT_PLAN);
-        return plan.contains("t")?level().getGameTime()-plan.getLong("t")+partial:-1;
+        return plan.contains("t")?level().getGameTime()-plan.getLongOr("t",0L)+partial:-1;
     }
     public Vec3 queuedStart() { return readPlanPoint(entityData.get(NEXT_PLAN),"s"); }
     public Vec3 queuedEnd() { return readPlanPoint(entityData.get(NEXT_PLAN),"e"); }
-    public boolean queuedWarningLocked() { return entityData.get(NEXT_PLAN).getBoolean("locked"); }
+    public boolean queuedWarningLocked() { return entityData.get(NEXT_PLAN).getBooleanOr("locked",false); }
     public boolean follower() { return entityData.get(FOLLOWER); }
     public Vec3 arenaPosition() { return readPlanPoint(entityData.get(ARENA_DATA),"p"); }
     /** The solo flag is deliberately separate from FOLLOWER so the final dancer still telegraphs attacks. */
@@ -115,16 +119,16 @@ public final class CogworkDancer extends Monster {
     public Vec3 attackEnd() { return readPlanPoint(entityData.get(ATTACK_PLAN),"e"); }
     /** Each dancer publishes four lanes together; the pair therefore announces all eight at once. */
     public List<AttackLane> telegraphLanes() {
-        ListTag tags=entityData.get(ATTACK_PLAN).getList("lanes",Tag.TAG_COMPOUND);
+        ListTag tags=entityData.get(ATTACK_PLAN).getListOrEmpty("lanes");
         List<AttackLane> result=new ArrayList<>(tags.size());
         for(int i=0;i<tags.size();i++) {
-            CompoundTag lane=tags.getCompound(i);
+            CompoundTag lane=tags.getCompoundOrEmpty(i);
             result.add(new AttackLane(readPlanPoint(lane,"s"),readPlanPoint(lane,"e")));
         }
         return result;
     }
     private static Vec3 readPlanPoint(CompoundTag tag,String prefix) {
-        return new Vec3(tag.getDouble(prefix+"x"),tag.getDouble(prefix+"y"),tag.getDouble(prefix+"z"));
+        return new Vec3(tag.getDoubleOr(prefix+"x",0.0),tag.getDoubleOr(prefix+"y",0.0),tag.getDoubleOr(prefix+"z",0.0));
     }
     private static void writePlanPoint(CompoundTag tag,String prefix,Vec3 point) {
         tag.putDouble(prefix+"x",point.x);tag.putDouble(prefix+"y",point.y);tag.putDouble(prefix+"z",point.z);
@@ -159,10 +163,10 @@ public final class CogworkDancer extends Monster {
         Vec3 centre=Vec3.atBottomCenterOf(altar.above());
         Vec3 a=centre.add(-4,0,0),b=centre.add(4,0,0);
         if(!validSpawn(level,a) || !validSpawn(level,b))return false;
-        CogworkDancer first=MyriadCalamity.DANCER.get().create(level),second=MyriadCalamity.DANCER.get().create(level);
+        CogworkDancer first=MyriadCalamity.DANCER.get().create(level,EntitySpawnReason.EVENT),second=MyriadCalamity.DANCER.get().create(level,EntitySpawnReason.EVENT);
         if(first==null || second==null)return false;
         first.applyConfiguredAttributes(true); second.applyConfiguredAttributes(true);
-        first.moveTo(a.x,a.y,a.z,-90,0);second.moveTo(b.x,b.y,b.z,90,0);
+        first.snapTo(a.x,a.y,a.z,-90,0);second.snapTo(b.x,b.y,b.z,90,0);
         first.initialized=second.initialized=true;
         first.arena=second.arena=centre; first.syncArena(); second.syncArena();
         first.partnerId=second.getUUID();second.partnerId=first.getUUID();
@@ -182,10 +186,10 @@ public final class CogworkDancer extends Monster {
         for(Vec3 offset : new Vec3[]{new Vec3(4,0,0),new Vec3(-4,0,0),new Vec3(0,0,4),new Vec3(0,0,-4)}) {
             Vec3 at=arena.add(offset);
             if(!validSpawn(level(),at)) continue;
-            CogworkDancer other=MyriadCalamity.DANCER.get().create(level());
+            CogworkDancer other=MyriadCalamity.DANCER.get().create(level(),EntitySpawnReason.EVENT);
             if(other==null) return false;
             other.applyConfiguredAttributes(false);
-            other.moveTo(at.x,at.y,at.z,getYRot()+180,0);
+            other.snapTo(at.x,at.y,at.z,getYRot()+180,0);
             other.initialized=true; other.arena=arena; other.syncArena(); other.partnerId=getUUID(); other.setHealth(getHealth());
             other.entityData.set(FOLLOWER,true);
             if(!level().addFreshEntity(other)) return false;
@@ -194,8 +198,8 @@ public final class CogworkDancer extends Monster {
         }
         return false;
     }
-    @Override protected void customServerAiStep() {
-        super.customServerAiStep();
+    @Override protected void customServerAiStep(ServerLevel currentLevel) {
+        super.customServerAiStep(currentLevel);
         if(!initialized) {
             if(!createPartner()) { setDeltaMovement(Vec3.ZERO); return; }
         }
@@ -403,10 +407,10 @@ public final class CogworkDancer extends Monster {
     private void relockQueuedWarningToCurrentTarget() {
         if(phase()!=3) return;
         CompoundTag plan=entityData.get(NEXT_PLAN);
-        int next=plan.getInt("a");
+        int next=plan.getIntOr("a",0);
         if(next!=DASH && next!=SLAM || !plan.contains("t")) return;
         long now=level().getGameTime();
-        if(now!=plan.getLong("t") || plan.getBoolean("locked")) return;
+        if(now!=plan.getLongOr("t",0L) || plan.getBooleanOr("locked",false)) return;
         Player target=currentArenaTarget();
         if(target==null) return;
         Vec3 aim=clampToArena(target.position(),13.5);
@@ -432,13 +436,13 @@ public final class CogworkDancer extends Monster {
     }
     private void activateQueued() {
         CompoundTag plan=entityData.get(NEXT_PLAN);
-        boolean lockedAtWarning=plan.getBoolean("locked");
-        if(phase()==3 && (plan.getInt("a")==DASH || plan.getInt("a")==SLAM) && !plan.getBoolean("locked")) {
+        boolean lockedAtWarning=plan.getBooleanOr("locked",false);
+        if(phase()==3 && (plan.getIntOr("a",0)==DASH || plan.getIntOr("a",0)==SLAM) && !plan.getBooleanOr("locked",false)) {
             // If a loaded or lagged entity missed the exact warning tick, still lock at activation.
             Player target=currentArenaTarget();
             if(target!=null) {
                 Vec3 aim=clampToArena(target.position(),13.5);
-                int next=plan.getInt("a");
+                int next=plan.getIntOr("a",0);
                 if(next==DASH) {
                     Vec3 oldStart=readPlanPoint(plan,"s"),oldEnd=readPlanPoint(plan,"e");
                     CombatMath.Lane lane=laneForCurrentTarget(aim,oldStart,oldEnd);
@@ -449,7 +453,7 @@ public final class CogworkDancer extends Monster {
                 lockedAtWarning=true;
             }
         }
-        int next=plan.getInt("a"); Vec3 start=readPlanPoint(plan,"s"),end=readPlanPoint(plan,"e");
+        int next=plan.getIntOr("a",0); Vec3 start=readPlanPoint(plan,"s"),end=readPlanPoint(plan,"e");
         clearQueued(); begin(next,start,end,0);
         if(lockedAtWarning && phase()==3 && (next==DASH || next==SLAM)) warningLockStarted=entityData.get(STARTED);
     }
@@ -636,7 +640,7 @@ public final class CogworkDancer extends Monster {
     }
     private void hit(Player player,float damage) {
         if(hitThisAttack.contains(player.getUUID())) return;
-        if(player.hurt(damageSources().mobAttack(this),damage)) {
+        if(player.hurtOrSimulate(damageSources().mobAttack(this),damage)) {
             hitThisAttack.add(player.getUUID());
             player.knockback(0.55, getX()-player.getX(), getZ()-player.getZ());
         }
@@ -661,8 +665,8 @@ public final class CogworkDancer extends Monster {
         }
         for(ServerPlayer p:Set.copyOf(bossBar.getPlayers())) if(p.level()!=level() || !p.isAlive()) bossBar.removePlayer(p);
     }
-    @Override public boolean hurt(DamageSource source,float amount) {
-        if(level().isClientSide || source.is(DamageTypes.GENERIC_KILL))return super.hurt(source,amount);
+    @Override public boolean hurtServer(ServerLevel server,DamageSource source,float amount) {
+        if(source.is(DamageTypes.GENERIC_KILL))return super.hurtServer(server,source,amount);
         if(applyingDamage || transitionTicks>0 || action()==REWIND || Float.isNaN(amount) || amount<=0)return false;
         CogworkDancer mate=partner();
         // Pause the shared pool when its other hitbox is unloaded; /kill remains available.
@@ -673,7 +677,7 @@ public final class CogworkDancer extends Monster {
         applyingDamage=true;
         try {
             // Bound incoming arithmetic and then clamp final health as well, including armor-bypassing damage.
-            damaged=super.hurt(source,Math.min(amount,CombatMath.perHitCap(getMaxHealth(),solo)));
+            damaged=super.hurtServer(server,source,Math.min(amount,CombatMath.perHitCap(getMaxHealth(),solo)));
         } finally { applyingDamage=false; }
         if(!damaged || getHealth()>=before)return damaged;
         if(solo)return true;
@@ -703,7 +707,7 @@ public final class CogworkDancer extends Monster {
     }
     @Override public void die(DamageSource source) {
         releaseAltar();
-        if(!level().isClientSide) {
+        if(!level().isClientSide()) {
             CogworkDancer mate=partner();
             if(mate!=null && !mate.solo) { mate.solo=true; mate.partnerId=null; mate.setHealth(Math.max(1,Math.min(mate.getHealth(),getMaxHealth()*0.2F))); mate.startTransition(4); }
             bossBar.removeAllPlayers();
@@ -719,31 +723,31 @@ public final class CogworkDancer extends Monster {
         bossBar.removeAllPlayers();super.remove(reason);
     }
     @Override public boolean removeWhenFarAway(double distance) { return false; }
-    @Override public boolean causeFallDamage(float distance,float multiplier,DamageSource source) { return false; }
+    @Override public boolean causeFallDamage(double distance,float multiplier,DamageSource source) { return false; }
     @Override protected SoundEvent getHurtSound(DamageSource source) { return SoundEvents.IRON_GOLEM_HURT; }
     @Override protected SoundEvent getDeathSound() { return SoundEvents.IRON_GOLEM_DEATH; }
-    @Override public void addAdditionalSaveData(CompoundTag tag) {
+    @Override public void addAdditionalSaveData(ValueOutput tag) {
         super.addAdditionalSaveData(tag);
         if(summoningAltar!=null)tag.putLong("SummoningAltar",summoningAltar.asLong());
         tag.putBoolean("DanceInitialized",initialized); tag.putBoolean("Solo",solo); tag.putBoolean("Follower",follower());
-        if(partnerId!=null) tag.putUUID("DancePartner",partnerId);
-        if(lastStruck!=null) tag.putUUID("LastStruckDancer",lastStruck);
+        if(partnerId!=null) tag.store("DancePartner",UUIDUtil.CODEC,partnerId);
+        if(lastStruck!=null) tag.store("LastStruckDancer",UUIDUtil.CODEC,lastStruck);
         tag.putDouble("ArenaX",arena.x); tag.putDouble("ArenaY",arena.y); tag.putDouble("ArenaZ",arena.z);
         tag.putInt("DanceSequence",sequence); tag.putInt("DancePhase",phase());
         tag.putInt("DashSequence",dashSequence);tag.putInt("SlamSequence",slamSequence);tag.putInt("PhaseThreePairSequence",phaseThreePairSequence);
         tag.putInt("TransitionTicks",transitionTicks);
     }
-    @Override public void readAdditionalSaveData(CompoundTag tag) {
+    @Override public void readAdditionalSaveData(ValueInput tag) {
         super.readAdditionalSaveData(tag);
-        summoningAltar=tag.contains("SummoningAltar")?BlockPos.of(tag.getLong("SummoningAltar")):null;
-        initialized=tag.getBoolean("DanceInitialized"); solo=tag.getBoolean("Solo");
-        entityData.set(FOLLOWER,tag.getBoolean("Follower"));
-        entityData.set(PHASE,Math.clamp(tag.getInt("DancePhase"),1,4));
-        partnerId=tag.hasUUID("DancePartner")?tag.getUUID("DancePartner"):null;
-        arena=new Vec3(tag.getDouble("ArenaX"),tag.getDouble("ArenaY"),tag.getDouble("ArenaZ")); syncArena();
-        lastStruck=tag.hasUUID("LastStruckDancer")?tag.getUUID("LastStruckDancer"):null;
-        sequence=tag.getInt("DanceSequence");dashSequence=tag.getInt("DashSequence");slamSequence=tag.getInt("SlamSequence");phaseThreePairSequence=tag.getInt("PhaseThreePairSequence");
-        transitionTicks=CombatMath.restoredTransitionTicks(tag.getInt("TransitionTicks"));
+        summoningAltar=tag.getLong("SummoningAltar").map(BlockPos::of).orElse(null);
+        initialized=tag.getBooleanOr("DanceInitialized",false); solo=tag.getBooleanOr("Solo",false);
+        entityData.set(FOLLOWER,tag.getBooleanOr("Follower",false));
+        entityData.set(PHASE,Math.clamp(tag.getIntOr("DancePhase",0),1,4));
+        partnerId=tag.read("DancePartner",UUIDUtil.CODEC).orElse(null);
+        arena=new Vec3(tag.getDoubleOr("ArenaX",0.0),tag.getDoubleOr("ArenaY",0.0),tag.getDoubleOr("ArenaZ",0.0)); syncArena();
+        lastStruck=tag.read("LastStruckDancer",UUIDUtil.CODEC).orElse(null);
+        sequence=tag.getIntOr("DanceSequence",0);dashSequence=tag.getIntOr("DashSequence",0);slamSequence=tag.getIntOr("SlamSequence",0);phaseThreePairSequence=tag.getIntOr("PhaseThreePairSequence",0);
+        transitionTicks=CombatMath.restoredTransitionTicks(tag.getIntOr("TransitionTicks",0));
         cancelAttack();if(transitionTicks>0)resumeTransition();setNoGravity(true);noPhysics=true;
     }
 }

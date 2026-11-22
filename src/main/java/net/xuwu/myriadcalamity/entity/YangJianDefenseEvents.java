@@ -15,7 +15,7 @@ public final class YangJianDefenseEvents {
     @SubscribeEvent
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         Projectile projectile=event.getProjectile();
-        if(projectile.level().isClientSide || !(event.getRayTraceResult() instanceof EntityHitResult hit))return;
+        if(projectile.level().isClientSide() || !(event.getRayTraceResult() instanceof EntityHitResult hit))return;
         if(hit.getEntity() instanceof YangJian boss && boss.guardProjectile(projectile))event.setCanceled(true);
     }
 }

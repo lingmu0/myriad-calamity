@@ -2,12 +2,9 @@ package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.entity.LightningScar;
 import net.xuwu.myriadcalamity.entity.LightningTrail;
@@ -18,13 +15,15 @@ import net.xuwu.myriadcalamity.entity.LightningTrail;
  * It reads exactly like the P3 red-thunder field, only colder, and it stays until the next axe
  * summon. Every layer uses the published footprint, so the art matches the damage area.
  */
-public final class LightningTrailRenderer extends EntityRenderer<LightningTrail> {
+public final class LightningTrailRenderer extends CombatEntityRenderer<LightningTrail> {
     private static final int GLOW_RGB=0x2456D6,BODY_RGB=0x5696FF,CORE_RGB=0xDEF0FF;
     private static final int ARC_RGB=0x3C78EB;
 
     public LightningTrailRenderer(EntityRendererProvider.Context context) { super(context);shadowRadius=0; }
 
-    @Override public void render(LightningTrail trail,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
+    @Override protected AABB getBoundingBoxForCulling(LightningTrail entity) { return entity.combatRenderBounds(); }
+
+    @Override protected void collect(LightningTrail trail,float partial,PoseStack pose,CombatGeometry buffers,int light) {
         if(!trail.live(partial))return;
         Vec3 origin=trail.position();
         Vec3 anchor=trail.anchor().subtract(origin),end=trail.scarEnd().subtract(origin),center=trail.scarCenter().subtract(origin);
@@ -34,7 +33,7 @@ public final class LightningTrailRenderer extends EntityRenderer<LightningTrail>
         float age=trail.effectAge(partial);
         float fade=trail.persistent()?1F:Math.min(1,Math.max(.15F,(trail.lifetime()-age)/9F));
         double breathe=.5+.5*Math.sin(age*.32+trail.getId()*.7);
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer v=buffers.quads();
         double headingX=end.x-anchor.x,headingZ=end.z-anchor.z;
         // 1. The footprint itself: a breathing wash with a cracked, jittering rim.
         double[][] outline=LightningScar.outline(shape,anchor.x,anchor.z,headingX,headingZ,center.x,center.z,radius,arc);
@@ -57,7 +56,6 @@ public final class LightningTrailRenderer extends EntityRenderer<LightningTrail>
         double spread=Math.min(radius*.5,2.2);
         for(int i=0;i<pillars.length;i++)
             pillar(v,pose,point(pillars[i],.04),spread,age,trail.getId()+i*37,fade);
-        super.render(trail,yaw,partial,pose,buffers,light);
     }
 
     /** One full-height blue column plus the arcs it throws across its own patch of ground. */
@@ -141,5 +139,4 @@ public final class LightningTrailRenderer extends EntityRenderer<LightningTrail>
         v.addVertex(pose.last().pose(),(float)p.x,(float)p.y,(float)p.z).setColor(color);
     }
     private static int color(double alpha,int rgb) { return ((int)Math.clamp(alpha,0,255)<<24)|rgb; }
-    @Override public ResourceLocation getTextureLocation(LightningTrail trail) { return YangJianRenderer.TEXTURE; }
 }

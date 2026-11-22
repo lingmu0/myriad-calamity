@@ -2,8 +2,8 @@ package net.xuwu.myriadcalamity.world;
 
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 
 /** SavedData/NBT checks only. No Minecraft server, client, registry bootstrap or world is started. */
 public final class CloudArenaDataTest {
@@ -15,7 +15,7 @@ public final class CloudArenaDataTest {
     }
 
     private static CloudArenaData roundTrip(CloudArenaData original) {
-        return CloudArenaData.load(original.save(new CompoundTag(), null), null);
+        return CloudArenaData.load(original.save());
     }
 
     public static void main(String[] args) {
@@ -49,28 +49,28 @@ public final class CloudArenaDataTest {
         check(abandoned.returns.containsKey(owner), "Return ticket survives logout/abandonment independently of encounter");
         check(abandoned.pendingRewards.contains(owner), "Leaving the arena does not erase a pending reward");
 
-        CompoundTag corrupt = original.save(new CompoundTag(), null);
-        ListTag points = corrupt.getList("Returns", Tag.TAG_COMPOUND);
+        CompoundTag corrupt = original.save();
+        ListTag points = corrupt.getListOrEmpty("Returns");
         for (int axis = 0; axis < 3; axis++) {
-            CompoundTag point = points.getCompound(0).copy();
-            point.putUUID("Player", new UUID(41, axis));
+            CompoundTag point = points.getCompoundOrEmpty(0).copy();
+            point.store("Player",UUIDUtil.CODEC,new UUID(41,axis));
             point.putDouble(new String[] {"X", "Y", "Z"}[axis], new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}[axis]);
             points.add(point);
         }
-        CloudArenaData recovered = CloudArenaData.load(corrupt, null);
+        CloudArenaData recovered = CloudArenaData.load(corrupt);
         check(recovered.returns.size() == 1 && recovered.returns.containsKey(owner), "Non-finite X/Y/Z tickets are rejected without discarding valid players");
-        CompoundTag badAngles = original.save(new CompoundTag(), null);
-        CompoundTag anglePoint = badAngles.getList("Returns", Tag.TAG_COMPOUND).getCompound(0);
+        CompoundTag badAngles = original.save();
+        CompoundTag anglePoint = badAngles.getListOrEmpty("Returns").getCompoundOrEmpty(0);
         anglePoint.putFloat("Yaw", Float.NaN);
         anglePoint.putFloat("Pitch", Float.POSITIVE_INFINITY);
-        CloudArenaData angleRecovery = CloudArenaData.load(badAngles, null);
+        CloudArenaData angleRecovery = CloudArenaData.load(badAngles);
         check(angleRecovery.returns.get(owner).yaw() == 0 && angleRecovery.returns.get(owner).pitch() == 0,
             "Invalid angles are normalized while preserving the safe return position");
 
-        CompoundTag ownerless = original.save(new CompoundTag(), null);
+        CompoundTag ownerless = original.save();
         ownerless.remove("Owner");
-        check(!CloudArenaData.load(ownerless, null).fighting, "A malformed encounter cannot remain fighting without an owner");
-        CloudArenaData empty = CloudArenaData.load(new CompoundTag(), null);
+        check(!CloudArenaData.load(ownerless).fighting, "A malformed encounter cannot remain fighting without an owner");
+        CloudArenaData empty = CloudArenaData.load(new CompoundTag());
         check(!empty.built && empty.owner == null && empty.boss == null && !empty.fighting,
             "An empty or legacy tag has safe encounter defaults");
         check(empty.returns.isEmpty() && empty.rewarded.isEmpty() && empty.pendingRewards.isEmpty(),

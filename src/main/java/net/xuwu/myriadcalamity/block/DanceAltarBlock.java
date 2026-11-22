@@ -9,7 +9,6 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -27,9 +26,9 @@ public final class DanceAltarBlock extends Block {
     public static final MapCodec<DanceAltarBlock> CODEC=simpleCodec(DanceAltarBlock::new);
     public DanceAltarBlock(Properties properties) { super(properties); }
     @Override protected MapCodec<? extends Block> codec() { return CODEC; }
-    @Override protected ItemInteractionResult useItemOn(ItemStack stack,BlockState state,Level level,BlockPos pos,Player player,InteractionHand hand,BlockHitResult hit) {
-        if(!stack.is(MyriadCalamity.KEY.get()))return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        if(level.isClientSide)return ItemInteractionResult.SUCCESS;
+    @Override protected InteractionResult useItemOn(ItemStack stack,BlockState state,Level level,BlockPos pos,Player player,InteractionHand hand,BlockHitResult hit) {
+        if(!stack.is(MyriadCalamity.KEY.get()))return InteractionResult.TRY_WITH_EMPTY_HAND;
+        if(level.isClientSide())return InteractionResult.SUCCESS;
         ServerLevel server=(ServerLevel)level;
         if(level.getDifficulty()==Difficulty.PEACEFUL)return fail(player,"peaceful");
         if(DanceEncounters.get(server).active(pos) || !level.getEntitiesOfClass(CogworkDancer.class,new AABB(pos).inflate(48),CogworkDancer::isAlive).isEmpty())return fail(player,"already_dancing");
@@ -39,17 +38,17 @@ public final class DanceAltarBlock extends Block {
         }
         // Transaction: both entities are accepted by the server before consuming any item.
         if(!CogworkDancer.summonAtAltar(server,pos))return fail(player,"no_room");
+        player.getCooldowns().addCooldown(stack,100);
         stack.shrink(1);
-        player.getCooldowns().addCooldown(MyriadCalamity.KEY.get(),100);
         level.playSound(null,pos,SoundEvents.VAULT_ACTIVATE,SoundSource.BLOCKS,1.4F,.8F);
-        player.displayClientMessage(Component.translatable("message.myriad_calamity.summoned"),false);
-        return ItemInteractionResult.CONSUME;
+        player.sendSystemMessage(Component.translatable("message.myriad_calamity.summoned"));
+        return InteractionResult.CONSUME;
     }
-    private ItemInteractionResult fail(Player player,String key) {
-        player.displayClientMessage(Component.translatable("message.myriad_calamity."+key),true);return ItemInteractionResult.FAIL;
+    private InteractionResult fail(Player player,String key) {
+        player.sendOverlayMessage(Component.translatable("message.myriad_calamity."+key));return InteractionResult.FAIL;
     }
     @Override protected InteractionResult useWithoutItem(BlockState state,Level level,BlockPos pos,Player player,BlockHitResult hit) {
-        if(!level.isClientSide)player.displayClientMessage(Component.translatable("message.myriad_calamity.need_key"),true);
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        if(!level.isClientSide())player.sendOverlayMessage(Component.translatable("message.myriad_calamity.need_key"));
+        return level.isClientSide()?InteractionResult.SUCCESS:InteractionResult.CONSUME;
     }
 }

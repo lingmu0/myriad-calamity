@@ -114,7 +114,7 @@ public final class CombatMathTest {
         check(CombatMath.phaseThresholdReached(96,480,3) && !CombatMath.phaseThresholdReached(0,480,4),
             "The last player target is retired only at the phase-three floor, with no extra solo phase");
         CompoundTag phaseSave=new CompoundTag();phaseSave.putInt("TransitionTicks",37);
-        check(CombatMath.restoredTransitionTicks(phaseSave.getInt("TransitionTicks"))==37,
+        check(CombatMath.restoredTransitionTicks(phaseSave.getIntOr("TransitionTicks",0))==37,
             "Reload preserves all 37 remaining transition immunity ticks without converting seconds");
         check(CombatMath.restoredTransitionTicks(-4)==0 && CombatMath.restoredTransitionTicks(999)==60,
             "Malformed transition durations cannot give negative or permanent protection");
@@ -144,7 +144,7 @@ public final class CombatMathTest {
         check(ledger.active(altar),"An unrelated death cannot unlock the altar");
         ledger.release(altar,gold);
         check(ledger.active(altar),"First dancer's exit must not unlock a running solo fight");
-        DanceEncounters restored=DanceEncounters.load(ledger.save(new CompoundTag(),null),null);
+        DanceEncounters restored=DanceEncounters.load(ledger.save());
         check(restored.active(altar),"Solo encounter lock survives save/load");
         restored.release(altar,silver);
         check(!restored.active(altar),"Final survivor's death unlocks the next paid encounter");

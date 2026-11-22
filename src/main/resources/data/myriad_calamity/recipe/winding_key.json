@@ -7,18 +7,10 @@
     " RC"
   ],
   "key": {
-    "G": {
-      "item": "minecraft:gold_ingot"
-    },
-    "A": {
-      "item": "minecraft:amethyst_shard"
-    },
-    "R": {
-      "item": "minecraft:redstone"
-    },
-    "C": {
-      "item": "minecraft:copper_ingot"
-    }
+    "G": "minecraft:gold_ingot",
+    "A": "minecraft:amethyst_shard",
+    "R": "minecraft:redstone",
+    "C": "minecraft:copper_ingot"
   },
   "result": {
     "id": "myriad_calamity:winding_key",

@@ -2,10 +2,13 @@ package net.xuwu.myriadcalamity.entity;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
@@ -47,7 +50,7 @@ public final class CogworkBlade extends Projectile {
             Vec3 direction=new Vec3(Math.cos(angle),0,Math.sin(angle));
             Vec3 start=center.add(direction.scale(1.4));
             if(!level.hasChunkAt(BlockPos.containing(start)))continue;
-            CogworkBlade blade=MyriadCalamity.BLADE.get().create(level);
+            CogworkBlade blade=MyriadCalamity.BLADE.get().create(level,EntitySpawnReason.EVENT);
             if(blade==null)continue;
             blade.setOwner(owner);blade.origin=center;blade.damage=Math.clamp(damage,0.1F,1000F);
             blade.entityData.set(SILVER,owner.follower());
@@ -59,7 +62,7 @@ public final class CogworkBlade extends Projectile {
     @Override public void tick() {
         super.tick();
         Vec3 movement=getDeltaMovement();
-        if(!level().isClientSide) {
+        if(!level().isClientSide()) {
             Entity source=getOwner();
             // Cancelling the dance, losing/unloading the caster, or finishing the encounter clears its volley.
             if(--life<=0 || !(source instanceof CogworkDancer owner) || !owner.isAlive() || owner.action()!=CogworkDancer.SPIN
@@ -70,7 +73,7 @@ public final class CogworkBlade extends Projectile {
             HitResult result=ProjectileUtil.getHitResultOnMoveVector(this,this::canHitEntity);
             if(result.getType()!=HitResult.Type.MISS) {
                 if(!EventHooks.onProjectileImpact(this,result)) {
-                    if(result instanceof EntityHitResult hit)hit.getEntity().hurt(damageSources().mobProjectile(this,owner),damage);
+                    if(result instanceof EntityHitResult hit)hit.getEntity().hurtOrSimulate(damageSources().mobProjectile(this,owner),damage);
                     discard();return;
                 }
             }
@@ -80,14 +83,14 @@ public final class CogworkBlade extends Projectile {
     @Override protected boolean canHitEntity(Entity entity) {
         return entity instanceof Player player && player.isAlive() && !player.isCreative() && !player.isSpectator() && super.canHitEntity(entity);
     }
-    @Override protected void addAdditionalSaveData(CompoundTag tag) {
+    @Override protected void addAdditionalSaveData(ValueOutput tag) {
         super.addAdditionalSaveData(tag);tag.putInt("BladeLife",life);tag.putFloat("BladeDamage",damage);
         tag.putDouble("BladeOriginX",origin.x);tag.putDouble("BladeOriginY",origin.y);tag.putDouble("BladeOriginZ",origin.z);
         tag.putBoolean("BladeSilver",silver());
     }
-    @Override protected void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);life=Math.clamp(tag.getInt("BladeLife"),0,MAX_LIFE);damage=Math.clamp(tag.getFloat("BladeDamage"),0.1F,1000F);
-        origin=new Vec3(tag.getDouble("BladeOriginX"),tag.getDouble("BladeOriginY"),tag.getDouble("BladeOriginZ"));
-        entityData.set(SILVER,tag.getBoolean("BladeSilver"));setNoGravity(true);
+    @Override protected void readAdditionalSaveData(ValueInput tag) {
+        super.readAdditionalSaveData(tag);life=Math.clamp(tag.getIntOr("BladeLife",0),0,MAX_LIFE);damage=Math.clamp(tag.getFloatOr("BladeDamage",0F),0.1F,1000F);
+        origin=new Vec3(tag.getDoubleOr("BladeOriginX",0.0),tag.getDoubleOr("BladeOriginY",0.0),tag.getDoubleOr("BladeOriginZ",0.0));
+        entityData.set(SILVER,tag.getBooleanOr("BladeSilver",false));setNoGravity(true);
     }
 }

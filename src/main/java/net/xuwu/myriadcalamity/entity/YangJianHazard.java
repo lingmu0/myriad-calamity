@@ -5,12 +5,17 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -23,7 +28,7 @@ import net.xuwu.myriadcalamity.MyriadCalamity;
 
 /** A single server plan owns its warning, visible beam/strike and damage. Never edits blocks. */
 public final class YangJianHazard extends Entity {
-    private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(YangJianHazard.class,EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(YangJianHazard.class,MyriadCalamity.PLAN_SERIALIZER.get());
     private static final Map<ServerLevel,YangJianEffects.DamageWindow> HITS=new WeakHashMap<>();
     private UUID caster,target;
     private long lease;
@@ -44,13 +49,13 @@ public final class YangJianHazard extends Entity {
     }
     @Nullable public static YangJianHazard beam(ServerLevel level,YangJian owner,Vec3 origin,Vec3 direction,double range,double radius,int warning,int active,int mode,float damage) {
         if(!room(level,owner) || !finite(origin) || !finite(direction) || direction.lengthSqr()<1E-8)return null;
-        YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level);if(h==null)return null;
+        YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level,EntitySpawnReason.EVENT);if(h==null)return null;
         h.bind(owner,damage);CompoundTag p=h.base(1,warning,Math.clamp(active,1,100),radius);
         // Mode 3 is a short clone-sweep pass; it shares the beam renderer with
         // the normal sweep but turns farther each active tick.
         p.putInt("mode",Math.clamp(mode,0,4));p.putDouble("range",Math.clamp(range,1,48));
         write(p,"initial",direction.normalize());write(p,"previous",direction.normalize());
-        write(p,"s",origin);write(p,"d",direction.normalize());write(p,"e",h.clip(origin,origin.add(direction.normalize().scale(p.getDouble("range")))));
+        write(p,"s",origin);write(p,"d",direction.normalize());write(p,"e",h.clip(origin,origin.add(direction.normalize().scale(p.getDoubleOr("range",0.0)))));
         h.entityData.set(PLAN,p);h.setPos(origin);level.addFreshEntity(h);
         return h;
     }
@@ -67,7 +72,7 @@ public final class YangJianHazard extends Entity {
         HitResult floor=level.clip(new ClipContext(ground.add(0,5,0),ground.add(0,-10,0),ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,owner));
         if(floor.getType()==HitResult.Type.MISS)return;
         Vec3 at=floor.getLocation().add(0,.035,0);
-        YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level);if(h==null)return;
+        YangJianHazard h=MyriadCalamity.YANG_JIAN_HAZARD.get().create(level,EntitySpawnReason.EVENT);if(h==null)return;
         h.bind(owner,damage);CompoundTag p=h.base(sword?2:3,warning,6,radius);p.putBoolean("persistent",persistent);
         // The culling volume follows the rendered pillar, not the old eight-block drop.
         write(p,"s",at);write(p,"e",at.add(0,sword?8:YangJianHazardMath.RED_THUNDER_HEIGHT,0));
@@ -85,7 +90,7 @@ public final class YangJianHazard extends Entity {
         direction=direction.normalize();
         CompoundTag p=entityData.get(PLAN).copy();
         write(p,"initial",direction);write(p,"previous",direction);write(p,"d",direction);
-        write(p,"s",origin);write(p,"e",clip(origin,origin.add(direction.scale(p.getDouble("range")))));
+        write(p,"s",origin);write(p,"e",clip(origin,origin.add(direction.scale(p.getDoubleOr("range",0.0)))));
         entityData.set(PLAN,p);
     }
     private void bind(YangJian owner,float amount) {
@@ -104,13 +109,13 @@ public final class YangJianHazard extends Entity {
         p.putInt("w",Math.clamp(warning,minimum,80));p.putInt("active",active);p.putFloat("radius",(float)YangJianHazardMath.impactRadius(kind,radius));return p;
     }
     public boolean ready() { return entityData.get(PLAN).contains("time"); }
-    public int kind() { return entityData.get(PLAN).getInt("kind"); }
-    public int mode() { return entityData.get(PLAN).getInt("mode"); }
-    public int windup() { return entityData.get(PLAN).getInt("w"); }
-    public int duration() { return entityData.get(PLAN).getInt("active"); }
-    public float radius() { return entityData.get(PLAN).getFloat("radius"); }
-    public boolean persistent() { return entityData.get(PLAN).getBoolean("persistent"); }
-    public float age(float partial) { return level().getGameTime()-entityData.get(PLAN).getLong("time")+partial; }
+    public int kind() { return entityData.get(PLAN).getIntOr("kind",0); }
+    public int mode() { return entityData.get(PLAN).getIntOr("mode",0); }
+    public int windup() { return entityData.get(PLAN).getIntOr("w",0); }
+    public int duration() { return entityData.get(PLAN).getIntOr("active",0); }
+    public float radius() { return entityData.get(PLAN).getFloatOr("radius",0F); }
+    public boolean persistent() { return entityData.get(PLAN).getBooleanOr("persistent",false); }
+    public float age(float partial) { return level().getGameTime()-entityData.get(PLAN).getLongOr("time",0L)+partial; }
     public Vec3 start() { return read(entityData.get(PLAN),"s"); }
     public Vec3 end() { return read(entityData.get(PLAN),"e"); }
     /** Both the rendered head and beam consume this same fractional-tick direction. */
@@ -126,14 +131,14 @@ public final class YangJianHazard extends Entity {
         Vec3 from=visualStart(partial);
         // Clip the smoothed ray at its current angle as well: a wall corner
         // must not inherit the previous frame's longer unobstructed distance.
-        return clip(from,from.add(visualDirection(partial).scale(entityData.get(PLAN).getDouble("range"))));
+        return clip(from,from.add(visualDirection(partial).scale(entityData.get(PLAN).getDoubleOr("range",0.0))));
     }
     public Vec3 visualStart(float partial) {
-        return level().isClientSide && visualOrigin!=null && level().getGameTime()-visualOriginTick<=1?visualOrigin:start();
+        return level().isClientSide() && visualOrigin!=null && level().getGameTime()-visualOriginTick<=1?visualOrigin:start();
     }
     /** The client model publishes its actual animated forehead attachment each frame. */
     public void setVisualOrigin(Vec3 point) {
-        if(level().isClientSide && finite(point)) { visualOrigin=point;visualOriginTick=level().getGameTime(); }
+        if(level().isClientSide() && finite(point)) { visualOrigin=point;visualOriginTick=level().getGameTime(); }
     }
     private Vec3 sweepDirection(double age) {
         Vec3 initial=read(entityData.get(PLAN),"initial");
@@ -162,7 +167,7 @@ public final class YangJianHazard extends Entity {
                     direction=new Vec3(turn.x(),turn.y(),turn.z());
                 }
             }
-            write(p,"d",direction);write(p,"e",clip(start(),start().add(direction.scale(p.getDouble("range")))));entityData.set(PLAN,p);
+            write(p,"d",direction);write(p,"e",clip(start(),start().add(direction.scale(p.getDoubleOr("range",0.0)))));entityData.set(PLAN,p);
             if(age(0)==windup())level().playSound(null,blockPosition(),SoundEvents.BEACON_ACTIVATE,SoundSource.HOSTILE,1,.65F);
             for(LivingEntity player:server.getEntitiesOfClass(LivingEntity.class,new AABB(start(),end()).inflate(radius()+.7),owner::validTarget)) {
                 if(!stillValid(owner))return;
@@ -194,19 +199,21 @@ public final class YangJianHazard extends Entity {
     }
     private void damage(LivingEntity player,YangJian owner,ServerLevel server) {
         if(HITS.computeIfAbsent(server,key->new YangJianEffects.DamageWindow()).claim(owner.getUUID(),player.getUUID(),server.getGameTime()))
-            player.hurt(damageSources().mobProjectile(this,owner),damage);
+            player.hurtOrSimulate(damageSources().mobProjectile(this,owner),damage);
     }
-    @Override public AABB getBoundingBoxForCulling() {
-        if(!ready())return super.getBoundingBoxForCulling();
+    @Override public boolean hurtServer(ServerLevel level,DamageSource source,float amount) { return false; }
+
+    public AABB combatRenderBounds() {
+        if(!ready())return getBoundingBox();
         return persistent() && age(0)>=windup()+duration()
             ?new AABB(start(),start()).inflate(radius()+1,YangJianHazardMath.RED_THUNDER_HEIGHT,radius()+1)
             :new AABB(start(),end()).inflate(radius()+1);
     }
     @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance<128*128; }
     @Override public boolean isPickable() { return false; }
-    @Override protected void addAdditionalSaveData(CompoundTag tag) { if(caster!=null)tag.putUUID("Caster",caster);tag.put("Plan",entityData.get(PLAN).copy()); }
-    @Override protected void readAdditionalSaveData(CompoundTag tag) { expired=true;caster=tag.hasUUID("Caster")?tag.getUUID("Caster"):null; }
+    @Override protected void addAdditionalSaveData(ValueOutput tag) { if(caster!=null)tag.store("Caster",UUIDUtil.CODEC,caster);tag.store("Plan",CompoundTag.CODEC,entityData.get(PLAN)); }
+    @Override protected void readAdditionalSaveData(ValueInput tag) { expired=true;caster=tag.read("Caster",UUIDUtil.CODEC).orElse(null); }
     private static boolean finite(Vec3 v) { return Double.isFinite(v.x+v.y+v.z); }
-    private static Vec3 read(CompoundTag p,String name) { return new Vec3(p.getDouble(name+"x"),p.getDouble(name+"y"),p.getDouble(name+"z")); }
+    private static Vec3 read(CompoundTag p,String name) { return new Vec3(p.getDoubleOr(name+"x",0.0),p.getDoubleOr(name+"y",0.0),p.getDoubleOr(name+"z",0.0)); }
     private static void write(CompoundTag p,String name,Vec3 v) { p.putDouble(name+"x",v.x);p.putDouble(name+"y",v.y);p.putDouble(name+"z",v.z); }
 }

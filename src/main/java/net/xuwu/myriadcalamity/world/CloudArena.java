@@ -8,13 +8,14 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -22,7 +23,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.portal.DimensionTransition;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -33,6 +33,7 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.xuwu.myriadcalamity.MyriadCalamity;
@@ -57,9 +58,9 @@ public final class CloudArena {
     public static boolean inCloudRealm(Level level) { return LEVEL.equals(level.dimension()); }
 
     public static void useTalisman(ServerPlayer player) {
-        if (player.getCooldowns().isOnCooldown(MyriadCalamity.CLOUD_TALISMAN.get())) return;
-        player.getCooldowns().addCooldown(MyriadCalamity.CLOUD_TALISMAN.get(), 20);
-        MinecraftServer server = player.server;
+        if (player.getCooldowns().isOnCooldown(MyriadCalamity.CLOUD_TALISMAN.get().getDefaultInstance())) return;
+        player.getCooldowns().addCooldown(MyriadCalamity.CLOUD_TALISMAN.get().getDefaultInstance(), 20);
+        MinecraftServer server = player.level().getServer();
         CloudArenaData data = CloudArenaData.get(server);
         if (inCloudRealm(player.level())) {
             if (data.fighting && player.getUUID().equals(data.owner)) {
@@ -93,7 +94,7 @@ public final class CloudArena {
         }
         refreshTicket(arena);
         buildOnce(arena, data);
-        data.returns.put(player.getUUID(), new CloudArenaData.ReturnPoint(player.level().dimension().location().toString(),
+        data.returns.put(player.getUUID(), new CloudArenaData.ReturnPoint(player.level().dimension().identifier().toString(),
             player.getX(), player.getY(), player.getZ(), player.getYRot(), player.getXRot()));
         data.owner = player.getUUID();
         data.boss = null;
@@ -101,9 +102,9 @@ public final class CloudArena {
         data.createdAt = server.overworld().getGameTime();
         data.startsAt = data.createdAt + PREPARATION;
         data.setDirty();
-        YangJian boss = MyriadCalamity.YANG_JIAN.get().create(arena);
+        YangJian boss = MyriadCalamity.YANG_JIAN.get().create(arena,EntitySpawnReason.EVENT);
         if (boss != null) {
-            boss.moveTo(.5, 129, -8.5, 0, 0);
+            boss.snapTo(.5, 129, -8.5, 0, 0);
             boss.setArena(CENTER, player.getUUID());
             boss.prepareForArena(PREPARATION);
             data.boss = boss.getUUID();
@@ -191,7 +192,7 @@ public final class CloudArena {
                     message(owner, "cloud_interrupted");
                     release(arena, data);
                 } else if (now < data.startsAt && now % 20 == 0) {
-                    owner.displayClientMessage(Component.translatable("message.myriad_calamity.cloud_countdown", (data.startsAt - now + 19) / 20), true);
+                    owner.sendOverlayMessage(Component.translatable("message.myriad_calamity.cloud_countdown", (data.startsAt - now + 19) / 20));
                 }
             }
         }
@@ -221,7 +222,7 @@ public final class CloudArena {
 
     private static void refreshTicket(ServerLevel arena) {
         // PORTAL expires after 300 ticks even on an interrupted shutdown; no persistent forceload.
-        arena.getChunkSource().addRegionTicket(TicketType.PORTAL, new ChunkPos(CENTER), TICKET_DISTANCE, CENTER, true);
+        arena.getChunkSource().addTicketWithRadius(TicketType.PORTAL, ChunkPos.containing(CENTER), TICKET_DISTANCE);
     }
 
     private static void rescueDroppedItems(ServerLevel arena) {
@@ -245,7 +246,7 @@ public final class CloudArena {
             data.rewarded.add(id);
             data.setDirty();
             message(player, "cloud_reward");
-        } else if (player.server.overworld().getGameTime() % 100 == 0) message(player, "cloud_reward_pending");
+        } else if (player.level().getServer().overworld().getGameTime() % 100 == 0) message(player, "cloud_reward_pending");
     }
 
     private static void release(ServerLevel arena, CloudArenaData data) {
@@ -265,17 +266,17 @@ public final class CloudArena {
         data.boss = null;
         data.fighting = false;
         data.setDirty();
-        arena.getChunkSource().removeRegionTicket(TicketType.PORTAL, new ChunkPos(CENTER), TICKET_DISTANCE, CENTER, true);
+        arena.getChunkSource().removeTicketWithRadius(TicketType.PORTAL, ChunkPos.containing(CENTER), TICKET_DISTANCE);
     }
 
     private static void returnHome(ServerPlayer player, CloudArenaData data) {
         CloudArenaData.ReturnPoint ticket = data.returns.get(player.getUUID());
-        ServerLevel target = player.server.overworld();
+        ServerLevel target = player.level().getServer().overworld();
         Vec3 destination = null;
         float yaw = player.getYRot(), pitch = player.getXRot();
         if (ticket != null) {
-            ResourceLocation id = ResourceLocation.tryParse(ticket.dimension());
-            ServerLevel saved = id == null ? null : player.server.getLevel(ResourceKey.create(Registries.DIMENSION, id));
+            Identifier id = Identifier.tryParse(ticket.dimension());
+            ServerLevel saved = id == null ? null : player.level().getServer().getLevel(ResourceKey.create(Registries.DIMENSION, id));
             if (saved != null && !inCloudRealm(saved)) {
                 target = saved;
                 destination = findSafe(target, player, new Vec3(ticket.x(), ticket.y(), ticket.z()));
@@ -284,13 +285,13 @@ public final class CloudArena {
             }
         }
         if (destination == null) {
-            target = player.server.overworld();
             // Vanilla's adjusted spawn search is the fallback if the original dimension was removed
             // or another player built over the ticket. This neither builds blocks nor consumes anchors.
-            destination = new DimensionTransition(target, player, DimensionTransition.DO_NOTHING).pos();
+            target=player.level().getServer().overworld();
+            destination=player.adjustSpawnLocation(target,target.getRespawnData().pos()).getBottomCenter();
         }
         if (player.getUUID().equals(data.owner)) {
-            ServerLevel arena = player.server.getLevel(LEVEL);
+            ServerLevel arena = player.level().getServer().getLevel(LEVEL);
             if (arena != null) release(arena, data);
         }
         teleport(player, target, destination, yaw, pitch);
@@ -324,14 +325,14 @@ public final class CloudArena {
         TRANSFERRING.add(player.getUUID());
         try {
             player.stopRiding();
-            player.teleportTo(level, pos.x, pos.y, pos.z, yaw, pitch);
+            player.teleportTo(level, pos.x, pos.y, pos.z, Set.of(), yaw, pitch, true);
             player.setDeltaMovement(Vec3.ZERO);
             player.fallDistance = 0;
         } finally { TRANSFERRING.remove(player.getUUID()); }
     }
 
     private static void message(ServerPlayer player, String key) {
-        player.displayClientMessage(Component.translatable("message.myriad_calamity." + key), true);
+        player.sendOverlayMessage(Component.translatable("message.myriad_calamity." + key));
     }
 
     @SubscribeEvent
@@ -341,7 +342,7 @@ public final class CloudArena {
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
         if (event.getEntity() instanceof ServerPlayer player && event.getPos().equals(EXIT)) {
-            CloudArenaData data = CloudArenaData.get(player.server);
+            CloudArenaData data = CloudArenaData.get(player.level().getServer());
             if (data.fighting && player.getUUID().equals(data.owner)) message(player, "cloud_battle_locked");
             else returnHome(player, data);
         } else if (event.getEntity() instanceof ServerPlayer player
@@ -349,7 +350,7 @@ public final class CloudArena {
     }
 
     @SubscribeEvent
-    public static void protectBreak(BlockEvent.BreakEvent event) {
+    public static void protectBreak(BreakBlockEvent event) {
         if (event.getLevel() instanceof Level level && inCloudRealm(level)) event.setCanceled(true);
     }
 
@@ -371,7 +372,7 @@ public final class CloudArena {
     @SubscribeEvent
     public static void travel(EntityTravelToDimensionEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || TRANSFERRING.contains(player.getUUID())) return;
-        CloudArenaData data = CloudArenaData.get(player.server);
+        CloudArenaData data = CloudArenaData.get(player.level().getServer());
         if (inCloudRealm(player.level()) && data.fighting && player.getUUID().equals(data.owner)) {
             event.setCanceled(true);
             message(player, "cloud_battle_locked");
@@ -381,13 +382,13 @@ public final class CloudArena {
     @SubscribeEvent
     public static void defeat(LivingDeathEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !inCloudRealm(player.level())) return;
-        CloudArenaData data = CloudArenaData.get(player.server);
+        CloudArenaData data = CloudArenaData.get(player.level().getServer());
         if (!data.returns.containsKey(player.getUUID())) return;
         event.setCanceled(true);
         player.setHealth(1);
         player.clearFire();
         player.invulnerableTime = 60;
-        if (player.getUUID().equals(data.owner)) release(player.serverLevel(), data);
+        if (player.getUUID().equals(data.owner)) release(player.level(), data);
         message(player, "cloud_defeated");
         // The post-tick return avoids moving dimensions inside LivingEntity.die(). Inventory stays intact.
     }
@@ -395,16 +396,16 @@ public final class CloudArena {
     @SubscribeEvent
     public static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        CloudArenaData data = CloudArenaData.get(player.server);
-        ServerLevel arena = player.server.getLevel(LEVEL);
+        CloudArenaData data = CloudArenaData.get(player.level().getServer());
+        ServerLevel arena = player.level().getServer().getLevel(LEVEL);
         if (arena != null && player.getUUID().equals(data.owner)) release(arena, data);
     }
 
     @SubscribeEvent
     public static void login(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        CloudArenaData data = CloudArenaData.get(player.server);
-        ServerLevel arena = player.server.getLevel(LEVEL);
+        CloudArenaData data = CloudArenaData.get(player.level().getServer());
+        ServerLevel arena = player.level().getServer().getLevel(LEVEL);
         if (arena != null && player.getUUID().equals(data.owner)) release(arena, data);
         // A persistent return ticket is consumed by tick after login/respawn is fully initialized.
     }
@@ -412,8 +413,8 @@ public final class CloudArena {
     @SubscribeEvent
     public static void respawn(PlayerEvent.PlayerRespawnEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        CloudArenaData data = CloudArenaData.get(player.server);
-        ServerLevel arena = player.server.getLevel(LEVEL);
+        CloudArenaData data = CloudArenaData.get(player.level().getServer());
+        ServerLevel arena = player.level().getServer().getLevel(LEVEL);
         if (arena != null && player.getUUID().equals(data.owner)) release(arena, data);
     }
 

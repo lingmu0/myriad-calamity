@@ -1,1 +1,13 @@
-{"pack":{"pack_format":34,"description":"万象灾厄 / Myriad Calamity"}}
+{
+  "pack": {
+    "description": "万象灾厄 / Myriad Calamity",
+    "min_format": [
+      84,
+      0
+    ],
+    "max_format": [
+      101,
+      1
+    ]
+  }
+}

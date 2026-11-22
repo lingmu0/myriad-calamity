@@ -21,7 +21,7 @@ public final class CogworkTheatrePiece extends StructurePiece {
         this.centre=centre;
     }
     public CogworkTheatrePiece(StructurePieceSerializationContext context,CompoundTag tag) {
-        super(ModStructures.THEATRE_PIECE.get(),tag); centre=BlockPos.of(tag.getLong("TheatreCentre"));
+        super(ModStructures.THEATRE_PIECE.get(),tag); centre=BlockPos.of(tag.getLongOr("TheatreCentre",0L));
     }
     @Override protected void addAdditionalSaveData(StructurePieceSerializationContext context,CompoundTag tag) { tag.putLong("TheatreCentre",centre.asLong()); }
     @Override public void postProcess(WorldGenLevel level,StructureManager structures,ChunkGenerator generator,RandomSource random,BoundingBox chunkBounds,ChunkPos chunk,BlockPos origin) {

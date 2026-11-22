@@ -10,6 +10,9 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -23,6 +26,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -43,6 +47,8 @@ import net.xuwu.myriadcalamity.config.MyriadConfig;
 
 /** Server-authoritative three-phase encounter. Only the final phase can be killed normally. */
 public final class YangJian extends Monster {
+    /** Neutral forehead height of the battle rig, in blocks above the platform. */
+    public static final double THIRD_EYE_HEIGHT=3.047;
     public static final int IDLE=0,COMBO=1,FOUR_COMBO=2,SIX_COMBO=3,THROW=4,THRUST=5,
         SUMMON_HOUND=6,COORDINATED=7,GUARD=8,COUNTER=9,PHASE_CLEAR=10,TRANSITION=12,
         AXE_SUMMON=13,AXE_SLAM=14,AXE_COMBO=15,FLYING_SWORDS=16,DRAW_SLASH=17,
@@ -62,8 +68,8 @@ public final class YangJian extends Monster {
     private static final EntityDataAccessor<Integer> AXE_TRAIL_CHARGES=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> COMPLETE=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> ARENA_PREPARING=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.BOOLEAN);
-    private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.COMPOUND_TAG);
-    private static final EntityDataAccessor<CompoundTag> ARENA=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<CompoundTag> PLAN=SynchedEntityData.defineId(YangJian.class,MyriadCalamity.PLAN_SERIALIZER.get());
+    private static final EntityDataAccessor<CompoundTag> ARENA=SynchedEntityData.defineId(YangJian.class,MyriadCalamity.PLAN_SERIALIZER.get());
     private static final EntityDataAccessor<Integer> BEAM=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CLONE_BEAM=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
     private static final int SWEEP_BEAM_SWEEP_TICKS=32;
@@ -74,8 +80,8 @@ public final class YangJian extends Monster {
     /** The aerial burst and the ultimate's two sword segments share one dense downpour shape. */
     private static final int AERIAL_RAIN_START=24,AERIAL_RAIN_WARNING=18;
     private static final int JUDGEMENT_RAIN_START=50,JUDGEMENT_DOWNPOUR_START=264;
-    private final ServerBossEvent healthBar=new ServerBossEvent(Component.translatable("boss.myriad_calamity.yang_jian_p1"),BossEvent.BossBarColor.WHITE,BossEvent.BossBarOverlay.PROGRESS);
-    private final ServerBossEvent guardBar=new ServerBossEvent(Component.translatable("boss.myriad_calamity.yang_jian_guard"),BossEvent.BossBarColor.BLUE,BossEvent.BossBarOverlay.NOTCHED_10);
+    private final ServerBossEvent healthBar=new ServerBossEvent(UUID.randomUUID(),Component.translatable("boss.myriad_calamity.yang_jian_p1"),BossEvent.BossBarColor.WHITE,BossEvent.BossBarOverlay.PROGRESS);
+    private final ServerBossEvent guardBar=new ServerBossEvent(UUID.randomUUID(),Component.translatable("boss.myriad_calamity.yang_jian_guard"),BossEvent.BossBarColor.BLUE,BossEvent.BossBarOverlay.NOTCHED_10);
     private final int[] cooldowns=new int[33];
     private final Set<UUID> hitThisStep=new HashSet<>();
     private final Map<UUID,Integer> stunnedAttackers=new HashMap<>();
@@ -124,12 +130,12 @@ public final class YangJian extends Monster {
             && approachAge(0)>=0 && approachAge(0)<YangJianFootwork.DURATION;
     }
     public float approachAge(float partial) { return level().getGameTime()-entityData.get(APPROACH_STARTED)+partial; }
-    public Vec3 eyeBeamOrigin() { return position().add(0,2.98,0).add(getLookAngle().multiply(.3,0,.3)); }
+    public Vec3 eyeBeamOrigin() { return position().add(0,THIRD_EYE_HEIGHT,0).add(getLookAngle().multiply(.24,0,.24)); }
     public float actionAge(float partial) { return Math.max(0,level().getGameTime()-entityData.get(STARTED)+partial); }
     public int attackWindup() { YangJianSkill skill=YangJianSkill.forAction(action());return skill==null?0:skill.stepWindup(0); }
-    public int comboStep() { return entityData.get(PLAN).getInt("step"); }
-    public int stepWindup() { return entityData.get(PLAN).getInt("w"); }
-    public float stepAge(float partial) { return level().getGameTime()-entityData.get(PLAN).getLong("t")+partial; }
+    public int comboStep() { return entityData.get(PLAN).getIntOr("step",0); }
+    public int stepWindup() { return entityData.get(PLAN).getIntOr("w",0); }
+    public float stepAge(float partial) { return level().getGameTime()-entityData.get(PLAN).getLongOr("t",0L)+partial; }
     public float guard() { return entityData.get(GUARD_VALUE); }
     public float maxGuard() { return entityData.get(GUARD_MAX); }
     public boolean hasGuard() { return guard()>0; }
@@ -140,20 +146,20 @@ public final class YangJian extends Monster {
     public Vec3 dashEnd() { return point(entityData.get(PLAN),"e"); }
     public Vec3 transitionCenter() { return attackPoint(); }
     public double transitionRadius() { return YangJianTransition.RADIUS; }
-    public float telegraphRadius() { return entityData.get(PLAN).getFloat("r"); }
-    public int telegraphShape() { return entityData.get(PLAN).getInt("shape"); }
-    public float telegraphAngle() { return entityData.get(PLAN).getFloat("angle"); }
+    public float telegraphRadius() { return entityData.get(PLAN).getFloatOr("r",0F); }
+    public int telegraphShape() { return entityData.get(PLAN).getIntOr("shape",0); }
+    public float telegraphAngle() { return entityData.get(PLAN).getFloatOr("angle",0F); }
     public boolean weaponThrown() { return entityData.get(THROWN); }
     public boolean warningVisible() {
         CompoundTag plan=entityData.get(PLAN);
-        return plan.getInt("a")==action() && plan.contains("t") && plan.getFloat("r")>0
+        return plan.getIntOr("a",0)==action() && plan.contains("t") && plan.getFloatOr("r",0F)>0
             && stepAge(0)>=0 && stepAge(0)<stepWindup() && telegraphShape()>0 && action()!=PHASE_CLEAR && !isTransitioning();
     }
     public boolean isTrialComplete() { return entityData.get(COMPLETE); }
     public boolean isArenaPreparing() { return entityData.get(ARENA_PREPARING); }
-    public boolean hasSweepClone() { return entityData.get(PLAN).getBoolean("cloneReady"); }
+    public boolean hasSweepClone() { return entityData.get(PLAN).getBooleanOr("cloneReady",false); }
     public Vec3 sweepClone() { return point(entityData.get(PLAN),"clone"); }
-    public float sweepCloneYaw() { return entityData.get(PLAN).getFloat("cloneYaw"); }
+    public float sweepCloneYaw() { return entityData.get(PLAN).getFloatOr("cloneYaw",0F); }
     @Nullable public YangJianHazard currentBeam() { return liveBeam(entityData.get(BEAM)); }
     @Nullable public YangJianHazard cloneBeam() { return liveBeam(entityData.get(CLONE_BEAM)); }
     @Nullable private YangJianHazard liveBeam(int id) {
@@ -161,16 +167,16 @@ public final class YangJian extends Monster {
             && (beam.warning(0) || beam.active(0))?beam:null;
     }
     public boolean isArenaBoss() { return entityData.get(ARENA).contains("center"); }
-    public BlockPos arenaCenter() { return isArenaBoss()?BlockPos.of(entityData.get(ARENA).getLong("center")):blockPosition(); }
+    public BlockPos arenaCenter() { return isArenaBoss()?BlockPos.of(entityData.get(ARENA).getLongOr("center",0L)):blockPosition(); }
     @Nullable public UUID arenaOwner() { return arenaOwner; }
     public void setArena(BlockPos center,UUID owner) {
         arenaCenter=center.immutable();arenaOwner=owner;
-        CompoundTag tag=new CompoundTag();tag.putLong("center",center.asLong());tag.putUUID("owner",owner);entityData.set(ARENA,tag);
+        CompoundTag tag=new CompoundTag();tag.putLong("center",center.asLong());tag.store("owner",UUIDUtil.CODEC,owner);entityData.set(ARENA,tag);
         initialize();
     }
     /** Hide and hold the arena boss during the entrance countdown so its music can start on arrival. */
     public void prepareForArena(int ticks) {
-        if (level().isClientSide) return;
+        if (level().isClientSide()) return;
         preparationRemaining=Math.max(0,ticks);
         entityData.set(ARENA_PREPARING,preparationRemaining>0);
         if (preparationRemaining>0) {
@@ -178,15 +184,15 @@ public final class YangJian extends Monster {
         }
     }
     private void initialize() {
-        if(initialized || level().isClientSide)return;
+        if(initialized || level().isClientSide())return;
         initialized=true;
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(MyriadConfig.yangJianHealth());
         getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(MyriadConfig.yangJianDamage());
         setHealth(getMaxHealth());entityData.set(GUARD_MAX,MyriadConfig.yangJianGuard());entityData.set(GUARD_VALUE,maxGuard());
     }
 
-    @Override protected void customServerAiStep() {
-        super.customServerAiStep();initialize();
+    @Override protected void customServerAiStep(ServerLevel currentLevel) {
+        super.customServerAiStep(currentLevel);initialize();
         if(!isAlive())return;
         if(preparationRemaining>0) {
             preparationRemaining--;setTarget(null);setDeltaMovement(Vec3.ZERO);setNoGravity(true);setInvisible(true);
@@ -398,7 +404,7 @@ public final class YangJian extends Monster {
             }
         } else publishPlan(0,skill.stepWindup(0),0,position(),position(),position());
         if(skill==YangJianSkill.THRUST || skill==YangJianSkill.COUNTER)playSound(SoundEvents.TRIDENT_RETURN,1,.65F);
-        else if(skill==YangJianSkill.SUMMON_HOUND)playSound(SoundEvents.WOLF_GROWL,1,.6F);
+        else if(skill==YangJianSkill.SUMMON_HOUND)playSound(CelestialHound.SOUNDS.growlSound().value(),1,.6F);
     }
     private void beginPhaseThree(YangJianSkill skill,LivingEntity target) {
         entityData.set(WEAPON,0);flightAnchor=clampPoint(position());patternRotation=random.nextDouble()*Math.PI*2;face(target.position());
@@ -502,7 +508,7 @@ public final class YangJian extends Monster {
         if(destination.distanceToSqr(sweepBodyPosition)<4)destination=clampPoint(sweepBodyPosition.add(side.scale(index%2==0?3.2:-3.2)));
         return new Vec3(destination.x,flightAnchor.y,destination.z);
     }
-    private Vec3 sweepEyeOrigin(Vec3 base) { return base.add(0,2.98,0); }
+    private Vec3 sweepEyeOrigin(Vec3 base) { return base.add(0,THIRD_EYE_HEIGHT,0); }
     private static float sweepYaw(Vec3 from,Vec3 to) {
         Vec3 direction=to.subtract(from);return (float)(Math.atan2(direction.z,direction.x)*Mth.RAD_TO_DEG)-90;
     }
@@ -937,7 +943,7 @@ public final class YangJian extends Monster {
         if(!hitThisStep.add(player.getUUID()) || !hasLineOfSight(player))return false;
         // A victim is admitted once per authored strike; short combo intervals still produce distinct hits.
         player.invulnerableTime=0;
-        if(player.hurt(damageSources().mobAttack(this),MyriadConfig.scaleYangJianDamage(damage))) {
+        if(player.hurtOrSimulate(damageSources().mobAttack(this),MyriadConfig.scaleYangJianDamage(damage))) {
             player.knockback(knockback,getX()-player.getX(),getZ()-player.getZ());player.hurtMarked=true;return true;
         }
         return false;
@@ -989,11 +995,11 @@ public final class YangJian extends Monster {
     public boolean ownsHound(UUID id) { return phase()==1 && !isTransitioning() && id.equals(houndId); }
     private void summonHound(LivingEntity target) {
         if(hound()!=null)return;
-        CelestialHound dog=MyriadCalamity.CELESTIAL_HOUND.get().create(level());if(dog==null)return;
+        CelestialHound dog=MyriadCalamity.CELESTIAL_HOUND.get().create(level(),EntitySpawnReason.EVENT);if(dog==null)return;
         Vec3 spot=clampPoint(position().add(getLookAngle().multiply(1,0,1).normalize().scale(-2.2)));
         dog.setPos(spot);dog.bind(this,target);
         if(level().noCollision(dog,dog.getBoundingBox()) && level().addFreshEntity(dog)) {
-            houndId=dog.getUUID();playSound(SoundEvents.WOLF_HOWL,1.4F,.75F);
+            houndId=dog.getUUID();playSound(CelestialHound.SOUNDS.ambientSound().value(),1.4F,.75F);
             ((ServerLevel)level()).sendParticles(ParticleTypes.CLOUD,spot.x,spot.y+.7,spot.z,25,.7,.5,.7,.025);
         } else cooldowns[SUMMON_HOUND]=60;
     }
@@ -1002,8 +1008,8 @@ public final class YangJian extends Monster {
     public void recoverWeapon() { entityData.set(THROWN,false);bladeId=null; }
     public void recoverWeapon(UUID id) { if(ownsWeapon(id))recoverWeapon(); }
 
-    @Override public boolean hurt(DamageSource source,float amount) {
-        if(level().isClientSide || source.is(DamageTypes.GENERIC_KILL))return super.hurt(source,amount);
+    @Override public boolean hurtServer(ServerLevel server,DamageSource source,float amount) {
+        if(source.is(DamageTypes.GENERIC_KILL))return super.hurtServer(server,source,amount);
         initialize();
         if(action()==PHASE_CLEAR || isTransitioning() || action()==INVISIBLE_DASH && isInvisible()
             || applyingDamage || !Float.isFinite(amount) || amount<=0)return false;
@@ -1042,7 +1048,7 @@ public final class YangJian extends Monster {
 
         // A depleted bar leaves every phase exposed.  Only actual health loss
         // can cross a phase threshold; guard depletion itself never transitions.
-        boolean damaged=super.hurt(source,incoming);
+        boolean damaged=super.hurtServer(server,source,incoming);
         if(damaged && isAlive() && phase()<3 && YangJianSkill.phaseThresholdReached(getHealth(),getMaxHealth(),phase())) {
             if(YangJianSkill.healthThresholdAction(phase())==TRANSITION)beginTransition();
             else beginEyeOpening();
@@ -1052,7 +1058,7 @@ public final class YangJian extends Monster {
 
     /** Called by the NeoForge projectile-impact hook before vanilla on-hit code can discard the projectile. */
     public boolean guardProjectile(Projectile projectile) {
-        if(level().isClientSide || !isAlive() || projectile.isRemoved() || action()==PHASE_CLEAR || isTransitioning()
+        if(level().isClientSide() || !isAlive() || projectile.isRemoved() || action()==PHASE_CLEAR || isTransitioning()
                 || action()==INVISIBLE_DASH && isInvisible() || action()!=IDLE && action()!=GUARD || guard()<=0) return false;
         Entity owner=projectile.getOwner();
         if(owner==this) return false;
@@ -1083,7 +1089,7 @@ public final class YangJian extends Monster {
             startGuardPose(target);
         }
         counterPending=phase()<3 && target!=null && cooldowns[phase()==2?DRAW_SLASH:COUNTER]==0 && random.nextFloat()<.7F;
-        playSound(SoundEvents.SHIELD_BLOCK,1.3F,.7F);
+        playSound(SoundEvents.SHIELD_BLOCK.value(),1.3F,.7F);
     }
 
     private void startGuardPose(@Nullable LivingEntity target) {
@@ -1101,14 +1107,14 @@ public final class YangJian extends Monster {
         // Yang Jian's own projectiles carry stateful owner references; only foreign projectiles change owner.
         if(!(projectile instanceof TriPointedBlade) && !(projectile instanceof DivineFlyingSword) && !(projectile instanceof CogworkBlade))
             projectile.setOwner(this);
-        projectile.setDeltaMovement(velocity);projectile.hasImpulse=true;projectile.hurtMarked=true;
+        projectile.setDeltaMovement(velocity);projectile.needsSync=true;projectile.hurtMarked=true;
         double horizontal=Math.sqrt(velocity.x*velocity.x+velocity.z*velocity.z);
         if(horizontal>1E-8)projectile.setYRot((float)(Math.atan2(velocity.z,velocity.x)*Mth.RAD_TO_DEG)-90F);
         projectile.setXRot((float)(Math.atan2(velocity.y,horizontal)*Mth.RAD_TO_DEG));
     }
 
     private void stunAttacker(LivingEntity attacker) {
-        attacker.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN,YangJianDefense.STUN_TICKS,255,false,true,true),this);
+        attacker.addEffect(new MobEffectInstance(MobEffects.SLOWNESS,YangJianDefense.STUN_TICKS,255,false,true,true),this);
         attacker.setDeltaMovement(Vec3.ZERO);attacker.hurtMarked=true;
         if(attacker instanceof Mob mob) { mob.getNavigation().stop();mob.setAggressive(false); }
         stunnedAttackers.put(attacker.getUUID(),YangJianDefense.STUN_TICKS);
@@ -1131,7 +1137,7 @@ public final class YangJian extends Monster {
         if(maxGuard()<=0 || guard()>0 || isTransitioning() || action()==PHASE_CLEAR)return;
         if(guardRegenRemaining>0) { guardRegenRemaining--;return; }
         entityData.set(GUARD_VALUE,maxGuard());guardPressure=0;
-        sparks(position().add(0,1,0),.8,12);playSound(SoundEvents.SHIELD_BLOCK,1.1F,.55F);
+        sparks(position().add(0,1,0),.8,12);playSound(SoundEvents.SHIELD_BLOCK.value(),1.1F,.55F);
     }
     /** Keep externally restored/edited health on the same 75%/50% phase contract as combat damage. */
     private void tickHealthTransitions() {
@@ -1140,12 +1146,21 @@ public final class YangJian extends Monster {
         if(phase()==1)beginTransition();else beginEyeOpening();
     }
     @Override public void setHealth(float value) { super.setHealth(applyingDamage?YangJianSkill.protectedHealth(value):value); }
+    private void cancelForPhaseTransition() {
+        // Preserve the encounter target. Only the canceled move loses its lock.
+        if(!validTarget(getTarget())) {
+            LivingEntity target=lockedEntity();
+            if(target!=null)setTarget(target);
+        }
+        cancelAttack();
+        clearSummons();
+    }
     private void beginTransition() {
         Vec3 center=isArenaBoss()?Vec3.atBottomCenterOf(arenaCenter().above()):position();
         beginThunderAxeTransition(center,true);
     }
     private void beginThunderAxeTransition(Vec3 center,boolean announce) {
-        cancelAttack();clearSummons();setTarget(null);transitionRemaining=YangJianTransition.DURATION;
+        cancelForPhaseTransition();transitionRemaining=YangJianTransition.DURATION;
         Vec3 start=isArenaBoss()?clampPoint(position()):new Vec3(getX(),center.y,getZ());
         setPos(start);setDeltaMovement(Vec3.ZERO);setNoGravity(true);fallDistance=0;
         entityData.set(ACTION,TRANSITION);entityData.set(STARTED,level().getGameTime());entityData.set(WEAPON,1);
@@ -1153,7 +1168,7 @@ public final class YangJian extends Monster {
         LivingEntity target=chooseTarget();if(target!=null)face(target.position());
         transitionDistances.clear();
         healthBar.setName(Component.translatable("boss.myriad_calamity.yang_jian_transition"));
-        if(announce) { playSound(SoundEvents.SHIELD_BREAK,1.5F,.6F);sparks(position().add(0,1,0),2,35); }
+        if(announce) { playSound(SoundEvents.SHIELD_BREAK.value(),1.5F,.6F);sparks(position().add(0,1,0),2,35); }
     }
     private void tickThunderAxeTransition() {
         int age=(int)actionAge(0);
@@ -1164,7 +1179,7 @@ public final class YangJian extends Monster {
         progress=progress*progress*(3-2*progress);
         Vec3 ground=dashStart().lerp(center,progress);
         setNoGravity(true);setDeltaMovement(Vec3.ZERO);fallDistance=0;
-        setPos(ground.x,center.y+YangJianTransition.height(age),ground.z);hasImpulse=true;
+        setPos(ground.x,center.y+YangJianTransition.height(age),ground.z);needsSync=true;
         if(age==YangJianTransition.SUMMON_START)playSound(SoundEvents.BEACON_ACTIVATE,1.5F,.6F);
         if(age==YangJianTransition.SWEEP_START)playSound(SoundEvents.TRIDENT_RETURN,1.8F,.5F);
         if(age==YangJianTransition.IMPACT) {
@@ -1192,7 +1207,7 @@ public final class YangJian extends Monster {
                 player.getY(),player.getBoundingBox().maxY,center.y);
             if(!touches || !hitThisStep.add(player.getUUID()))continue;
             // This is a ground pulse, not the aerial boss's melee hitbox. Never raise it with the caster.
-            player.hurt(damageSources().mobAttack(this),MyriadConfig.scaleYangJianDamage(wave?10:14));
+            player.hurtOrSimulate(damageSources().mobAttack(this),MyriadConfig.scaleYangJianDamage(wave?10:14));
             if(!isAlive() || action()!=TRANSITION)return;
         }
     }
@@ -1206,7 +1221,7 @@ public final class YangJian extends Monster {
         playSound(SoundEvents.TRIDENT_THUNDER.value(),1.2F,1.1F);sparks(position().add(0,2,0),2,40);
     }
     private void beginEyeOpening() {
-        cancelAttack();clearSummons();setTarget(null);transitionRemaining=YangJianPhaseThree.OPEN_TICKS;
+        cancelForPhaseTransition();transitionRemaining=YangJianPhaseThree.OPEN_TICKS;
         if(isArenaBoss())setPos(clampPoint(position()));
         entityData.set(ACTION,THIRD_EYE_OPEN);entityData.set(STARTED,level().getGameTime());entityData.set(WEAPON,0);
         healthBar.setName(Component.translatable("boss.myriad_calamity.yang_jian_eye_open"));
@@ -1225,7 +1240,7 @@ public final class YangJian extends Monster {
     }
     private void beginClear() {
         cancelAttack();entityData.set(ACTION,PHASE_CLEAR);entityData.set(STARTED,level().getGameTime());clearRemaining=CLEAR_TICKS;
-        setTarget(null);clearSummons();playSound(SoundEvents.SHIELD_BREAK,1.5F,.65F);
+        setTarget(null);clearSummons();playSound(SoundEvents.SHIELD_BREAK.value(),1.5F,.65F);
         healthBar.setName(Component.translatable(phase()==2?"boss.myriad_calamity.yang_jian_p2_clear":"boss.myriad_calamity.yang_jian_clear"));
     }
     private void clearSummons() {
@@ -1269,52 +1284,58 @@ public final class YangJian extends Monster {
         }
     }
     @Override public boolean removeWhenFarAway(double distance) { return false; }
-    @Override public AABB getBoundingBoxForCulling() {
-        if(action()==TRANSITION)return super.getBoundingBoxForCulling().inflate(16);
-        return phase()==3 || action()==THIRD_EYE_OPEN?super.getBoundingBoxForCulling().inflate(13,3,13):super.getBoundingBoxForCulling();
+    public AABB combatRenderBounds() {
+        if(action()==TRANSITION)return getBoundingBox().inflate(16);
+        return phase()==3 || action()==THIRD_EYE_OPEN?getBoundingBox().inflate(13,3,13):getBoundingBox();
     }
-    @Override public boolean causeFallDamage(float distance,float multiplier,DamageSource source) { return false; }
+    @Override public boolean causeFallDamage(double distance,float multiplier,DamageSource source) { return false; }
     @Override protected SoundEvent getHurtSound(DamageSource source) { return SoundEvents.PLAYER_HURT; }
     @Override protected SoundEvent getDeathSound() { return SoundEvents.IRON_GOLEM_DEATH; }
-    private static Vec3 point(CompoundTag tag,String name) { return new Vec3(tag.getDouble(name+"x"),tag.getDouble(name+"y"),tag.getDouble(name+"z")); }
+    private static Vec3 point(CompoundTag tag,String name) { return new Vec3(tag.getDoubleOr(name+"x",0.0),tag.getDoubleOr(name+"y",0.0),tag.getDoubleOr(name+"z",0.0)); }
     private static void writePoint(CompoundTag tag,String name,Vec3 value) { tag.putDouble(name+"x",value.x);tag.putDouble(name+"y",value.y);tag.putDouble(name+"z",value.z); }
-    @Override public void addAdditionalSaveData(CompoundTag tag) {
+    private static Vec3 readSavedPoint(ValueInput tag,String key) {
+        return new Vec3(tag.getDoubleOr(key+"x",0),tag.getDoubleOr(key+"y",0),tag.getDoubleOr(key+"z",0));
+    }
+    @Override public void addAdditionalSaveData(ValueOutput tag) {
         super.addAdditionalSaveData(tag);tag.putBoolean("YangJianInitialized",initialized);tag.putFloat("Guard",guard());tag.putFloat("MaxGuard",maxGuard());
         tag.putInt("YangJianPhase",phase());tag.putInt("YangJianWeapon",weapon());tag.putInt("TransitionRemaining",transitionRemaining);
         tag.putBoolean("PhaseTwoOpening",phaseTwoOpening);tag.putBoolean("AxeFollowupRequired",axeFollowupRequired);
         tag.putBoolean("PhaseThreeOpeningSweep",phaseThreeOpeningSweep);tag.putInt("GuardRegenRemaining",guardRegenRemaining);
         tag.putInt("AxeTrailCharges",axeTrailCharges());
-        if(action()==TRANSITION)writePoint(tag,"ThunderAxeCenter",transitionCenter());
+        if(action()==TRANSITION) {
+            Vec3 center=transitionCenter();
+            tag.putDouble("ThunderAxeCenterx",center.x);tag.putDouble("ThunderAxeCentery",center.y);tag.putDouble("ThunderAxeCenterz",center.z);
+        }
         tag.putBoolean("TrialComplete",isTrialComplete());tag.putInt("ClearRemaining",clearRemaining);tag.putInt("PreparationRemaining",preparationRemaining);tag.putInt("PreviousSkill",previousAction);
         tag.putIntArray("SkillCooldowns",cooldowns);tag.putInt("IdleDelay",idleDelay);
         if(arenaCenter!=null)tag.putLong("CloudArenaCenter",arenaCenter.asLong());
-        if(arenaOwner!=null)tag.putUUID("CloudArenaOwner",arenaOwner);if(houndId!=null)tag.putUUID("CelestialHound",houndId);
+        if(arenaOwner!=null)tag.store("CloudArenaOwner",UUIDUtil.CODEC,arenaOwner);if(houndId!=null)tag.store("CelestialHound",UUIDUtil.CODEC,houndId);
     }
-    @Override public void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);initialized=tag.getBoolean("YangJianInitialized");
-        entityData.set(PHASE,YangJianSkill.restoredPhase(tag.getInt("YangJianPhase")));
-        entityData.set(WEAPON,Math.clamp(tag.getInt("YangJianWeapon"),0,3));
-        transitionRemaining=Math.clamp(tag.getInt("TransitionRemaining"),0,phase()==2?70:YangJianTransition.DURATION);
-        preparationRemaining=Math.clamp(tag.getInt("PreparationRemaining"),0,200);
-        phaseTwoOpening=tag.getBoolean("PhaseTwoOpening");axeFollowupRequired=tag.getBoolean("AxeFollowupRequired");
-        phaseThreeOpeningSweep=tag.getBoolean("PhaseThreeOpeningSweep");
-        entityData.set(AXE_TRAIL_CHARGES,Math.clamp(tag.getInt("AxeTrailCharges"),0,YangJianSkill.AXE_TRAIL_CHARGES));
-        float maximum=tag.contains("MaxGuard")?tag.getFloat("MaxGuard"):
-            phase()==3?MyriadConfig.yangJianPhase3Guard():phase()==2?MyriadConfig.yangJianPhase2Guard():MyriadConfig.yangJianGuard();
+    @Override public void readAdditionalSaveData(ValueInput tag) {
+        super.readAdditionalSaveData(tag);initialized=tag.getBooleanOr("YangJianInitialized",false);
+        entityData.set(PHASE,YangJianSkill.restoredPhase(tag.getIntOr("YangJianPhase",0)));
+        entityData.set(WEAPON,Math.clamp(tag.getIntOr("YangJianWeapon",0),0,3));
+        transitionRemaining=Math.clamp(tag.getIntOr("TransitionRemaining",0),0,phase()==2?70:YangJianTransition.DURATION);
+        preparationRemaining=Math.clamp(tag.getIntOr("PreparationRemaining",0),0,200);
+        phaseTwoOpening=tag.getBooleanOr("PhaseTwoOpening",false);axeFollowupRequired=tag.getBooleanOr("AxeFollowupRequired",false);
+        phaseThreeOpeningSweep=tag.getBooleanOr("PhaseThreeOpeningSweep",false);
+        entityData.set(AXE_TRAIL_CHARGES,Math.clamp(tag.getIntOr("AxeTrailCharges",0),0,YangJianSkill.AXE_TRAIL_CHARGES));
+        float maximum=tag.getFloatOr("MaxGuard",phase()==3?MyriadConfig.yangJianPhase3Guard():
+            phase()==2?MyriadConfig.yangJianPhase2Guard():MyriadConfig.yangJianGuard());
         entityData.set(GUARD_MAX,Float.isFinite(maximum)?Math.max(1,maximum):180F);
-        float saved=tag.contains("Guard")?tag.getFloat("Guard"):maxGuard();entityData.set(GUARD_VALUE,Float.isFinite(saved)?Mth.clamp(saved,0,maxGuard()):maxGuard());
-        guardRegenRemaining=Math.clamp(tag.getInt("GuardRegenRemaining"),0,YangJianSkill.GUARD_REGEN_DELAY);
+        float saved=tag.getFloatOr("Guard",maxGuard());entityData.set(GUARD_VALUE,Float.isFinite(saved)?Mth.clamp(saved,0,maxGuard()):maxGuard());
+        guardRegenRemaining=Math.clamp(tag.getIntOr("GuardRegenRemaining",0),0,YangJianSkill.GUARD_REGEN_DELAY);
         if(guard()>0)guardRegenRemaining=0;
-        else if(!tag.contains("GuardRegenRemaining"))guardRegenRemaining=YangJianSkill.GUARD_REGEN_DELAY;
-        entityData.set(COMPLETE,tag.getBoolean("TrialComplete"));clearRemaining=Math.clamp(tag.getInt("ClearRemaining"),0,CLEAR_TICKS);
-        previousAction=Math.clamp(tag.getInt("PreviousSkill"),0,32);idleDelay=Math.clamp(tag.getInt("IdleDelay"),phase()==3?10:phase()==2?28:20,80);
-        int[] restored=tag.getIntArray("SkillCooldowns");for(int i=0;i<Math.min(restored.length,cooldowns.length);i++)cooldowns[i]=Math.clamp(restored[i],0,1200);
-        arenaCenter=tag.contains("CloudArenaCenter")?BlockPos.of(tag.getLong("CloudArenaCenter")):null;
-        arenaOwner=tag.hasUUID("CloudArenaOwner")?tag.getUUID("CloudArenaOwner"):null;
-        CompoundTag arena=new CompoundTag();if(arenaCenter!=null)arena.putLong("center",arenaCenter.asLong());if(arenaOwner!=null)arena.putUUID("owner",arenaOwner);entityData.set(ARENA,arena);
+        else if(tag.getInt("GuardRegenRemaining").isEmpty())guardRegenRemaining=YangJianSkill.GUARD_REGEN_DELAY;
+        entityData.set(COMPLETE,tag.getBooleanOr("TrialComplete",false));clearRemaining=Math.clamp(tag.getIntOr("ClearRemaining",0),0,CLEAR_TICKS);
+        previousAction=Math.clamp(tag.getIntOr("PreviousSkill",0),0,32);idleDelay=Math.clamp(tag.getIntOr("IdleDelay",0),phase()==3?10:phase()==2?28:20,80);
+        int[] restored=tag.getIntArray("SkillCooldowns").orElseGet(()->new int[0]);for(int i=0;i<Math.min(restored.length,cooldowns.length);i++)cooldowns[i]=Math.clamp(restored[i],0,1200);
+        arenaCenter=tag.getLong("CloudArenaCenter").map(BlockPos::of).orElse(null);
+        arenaOwner=tag.read("CloudArenaOwner",UUIDUtil.CODEC).orElse(null);
+        CompoundTag arena=new CompoundTag();if(arenaCenter!=null)arena.putLong("center",arenaCenter.asLong());if(arenaOwner!=null)arena.store("owner",UUIDUtil.CODEC,arenaOwner);entityData.set(ARENA,arena);
         entityData.set(ARENA_PREPARING,preparationRemaining>0);
         if(preparationRemaining>0) { setInvisible(true);setNoGravity(true); }
-        houndId=tag.hasUUID("CelestialHound")?tag.getUUID("CelestialHound"):null;
+        houndId=tag.read("CelestialHound",UUIDUtil.CODEC).orElse(null);
         // Never restore only an action ID: an old partial plan would fabricate warnings after chunk reload.
         cancelAttack();
         int restoredAction=YangJianSkill.restoredAction(phase(),isTrialComplete(),guard(),transitionRemaining,clearRemaining);
@@ -1324,7 +1345,7 @@ public final class YangJian extends Monster {
         } else if(restoredAction==TRANSITION) {
             // Reloads repeat the complete warned opening instead of restoring an unwarned impact mid-flight.
             Vec3 center=isArenaBoss()?Vec3.atBottomCenterOf(arenaCenter().above()):
-                tag.contains("ThunderAxeCenterx")?point(tag,"ThunderAxeCenter"):position();
+                Double.isFinite(tag.getDoubleOr("ThunderAxeCenterx",Double.NaN))?readSavedPoint(tag,"ThunderAxeCenter"):position();
             if(!Double.isFinite(center.x) || !Double.isFinite(center.y) || !Double.isFinite(center.z))center=position();
             clearRemaining=0;beginThunderAxeTransition(center,false);
         } else if(restoredAction==THIRD_EYE_OPEN) {

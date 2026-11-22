@@ -2,32 +2,36 @@ package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.config.MyriadConfig;
 import net.xuwu.myriadcalamity.entity.YangJianHazard;
 import net.xuwu.myriadcalamity.entity.YangJianHazardMath;
 
 /** Geometry warnings and bounded effects share the server's exact segment or impact circle. */
-public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard> {
+public final class YangJianHazardRenderer extends CombatEntityRenderer<YangJianHazard> {
     private final YangJianWeapons weapons;
     public YangJianHazardRenderer(EntityRendererProvider.Context context) { super(context);weapons=new YangJianWeapons(context.getResourceManager());shadowRadius=0; }
-    @Override public void render(YangJianHazard h,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
-        if(!h.ready() || h.age(partial)<0 || (!h.persistent() && h.age(partial)>=h.windup()+h.duration()))return;
+
+    static void collectBeam(YangJianHazard h,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
+        if(h.kind()!=1 || !h.ready() || !h.active(partial) || h.warning(partial))return;
+        // Level extraction happens after the boss poses have registered the eye origins.
+        eyeBeam(buffers.quads(),pose,h.visualStart(partial).subtract(camera),h.visualEnd(partial).subtract(camera),
+            h.radius(),h.age(partial)-h.windup(),h.getId());
+    }
+
+    @Override protected AABB getBoundingBoxForCulling(YangJianHazard entity) { return entity.combatRenderBounds(); }
+
+    @Override protected void collect(YangJianHazard h,float partial,PoseStack pose,CombatGeometry buffers,int light) {
+        if(h.kind()==1 || !h.ready() || h.age(partial)<0 || (!h.persistent() && h.age(partial)>=h.windup()+h.duration()))return;
         Vec3 from=h.visualStart(partial).subtract(h.position()),to=h.visualEnd(partial).subtract(h.position());
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer v=buffers.quads();
         float charge=h.windup()==0?1:Mth.clamp(h.age(partial)/h.windup(),0,1);
-        if(h.kind()==1) {
-            // Every eye beam charges on the eye itself. No route is drawn
-            // until release, including fixed shots and ordinary aerial sweeps.
-            if(!h.warning(partial))eyeBeam(v,pose,from,to,h.radius(),h.age(partial)-h.windup(),h.getId());
-        } else {
+        {
             boolean warning=h.warning(partial);
             float pulse=.72F+.28F*Mth.sin(h.age(partial)*.73F+h.getId());
             if(warning) {
@@ -47,11 +51,11 @@ public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard>
                 float drop=Mth.clamp((h.age(partial)-(h.windup()-5))/5,0,1);
                 // The approved blade tip is at -39.6 pixels; land that tip exactly on the warning floor.
                 pose.pushPose();pose.translate(from.x,from.y+39.6/16*.68+(1-drop)*8,from.z);pose.scale(.68F,.68F,.68F);
-                weapons.renderSword(pose,buffers.getBuffer(RenderType.entityCutoutNoCull(YangJianRenderer.TEXTURE)),15728880,OverlayTexture.NO_OVERLAY,0xFFFFFFFF);
+                buffers.mesh(pose,RenderTypes.entityCutout(YangJianRenderer.TEXTURE),(stack,vertices)->
+                    weapons.renderSword(stack,vertices,15728880,OverlayTexture.NO_OVERLAY,0xFFFFFFFF));
                 pose.popPose();
             } else if(!warning)redThunder(v,pose,from,h.radius(),h.age(partial)-h.windup(),h.getId());
         }
-        super.render(h,yaw,partial,pose,buffers,light);
     }
 
     /** Blade impact: crossed cuts and a cracked rim, so a landed sword reads as a sword. */
@@ -85,7 +89,7 @@ public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard>
         for(int i=0;i<segments;i++) {
             double a=i*Math.PI*2/segments,b=(i+1)*Math.PI*2/segments;
             double ra=radius*(1+.07*arcNoise(seed,i,41,frame,blend,0));
-            double rb=radius*(1+.07*arcNoise(seed,i+1,41,frame,blend,1));
+            double rb=radius*(1+.07*arcNoise(seed,(i+1)%segments,41,frame,blend,0));
             Vec3 x=center.add(Math.cos(a)*ra,.045,Math.sin(a)*ra);
             Vec3 y=center.add(Math.cos(b)*rb,.045,Math.sin(b)*rb);
             LightningTrailRenderer.ribbon(v,pose,x,y,outerWidth,outer);
@@ -225,12 +229,17 @@ public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard>
         return a+(b-a)*blend;
     }
     static void tube(VertexConsumer v,PoseStack pose,Vec3 from,Vec3 to,double radius,int color) {
-        Vec3 d=to.subtract(from).normalize();if(d.lengthSqr()<1E-8)return;
+        Vec3 segment=to.subtract(from);
+        double length=segment.length();
+        if(length<1E-4)return;
+        Vec3 d=segment.scale(1/length);
+        Vec3 throat=from.add(d.scale(Math.min(length*.35,.75)));
         Vec3 u=d.cross(Math.abs(d.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize(),w=d.cross(u).normalize();
         for(int i=0;i<12;i++) {
             double a=i*Math.PI/6,b=(i+1)*Math.PI/6;
             Vec3 x=u.scale(Math.cos(a)*radius).add(w.scale(Math.sin(a)*radius)),y=u.scale(Math.cos(b)*radius).add(w.scale(Math.sin(b)*radius));
-            LightningTrailRenderer.quad(v,pose,from.add(x),to.add(x),to.add(y),from.add(y),color);
+            LightningTrailRenderer.quad(v,pose,from.add(x.scale(.12)),throat.add(x),throat.add(y),from.add(y.scale(.12)),color);
+            LightningTrailRenderer.quad(v,pose,throat.add(x),to.add(x),to.add(y),throat.add(y),color);
         }
     }
     private static void circle(VertexConsumer v,PoseStack pose,Vec3 center,double radius,int edge,int fillAlpha) {
@@ -242,5 +251,4 @@ public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard>
             LightningTrailRenderer.ribbon(v,pose,x,y,.04,edge);
         }
     }
-    @Override public ResourceLocation getTextureLocation(YangJianHazard h) { return YangJianRenderer.TEXTURE; }
 }

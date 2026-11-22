@@ -5,19 +5,22 @@ import json
 import math
 import re
 import struct
+import base64
+from export_yang_jian_assets import SOURCE
 
 ROOT=Path(__file__).resolve().parents[1]
 ASSETS=ROOT/'src/main/resources/assets/myriad_calamity'
 
 
 def main():
-    original=(ROOT/'modeling/yang_jian_v3.bbmodel').read_bytes()
+    original=SOURCE.read_bytes()
     manifest=json.loads((ROOT/'modeling/yang_jian-runtime-manifest.json').read_text('utf8'))
     assert manifest['source_sha256']==hashlib.sha256(original).hexdigest(), 'Model changed after export'
     model=json.loads(original)
     mesh=json.loads((ASSETS/'mesh/yang_jian.json').read_text('utf8'))
     png=(ASSETS/'textures/entity/yang_jian.png').read_bytes()
     assert png[:8]==b'\x89PNG\r\n\x1a\n'
+    assert png==base64.b64decode(model['textures'][0]['source'].split(',',1)[1])
     assert list(struct.unpack('>II',png[16:24]))==mesh['texture_size']==[2048,2048]
     names=set();faces=0;bones_by_name={}
 
@@ -36,16 +39,19 @@ def main():
             walk(b['children'])
     walk(mesh['bones'])
     assert names=={g['name'] for g in model['groups']}
-    # The upper arms are held off the ribs by a mirrored rest abduction, in the mesh and in the
-    # source project alike, so bent elbows stop clipping into the cuirass.
+    # This sculpt models its relaxed shoulder abduction in the pivot spacing itself.
     for side,sign in (('left',-1),('right',1)):
-        arm=bones_by_name[side+'_arm']
-        source=next(g for g in model['groups'] if g['name']==side+'_arm')
-        assert arm['rotation'][0]==0 and arm['rotation'][1]==0,'Arm abduction only rolls the shoulder out'
-        assert abs(arm['rotation'][2])>=8 and arm['rotation'][2]*sign<0,'Both upper arms abduct away from the body'
-        assert abs(arm['rotation'][2]+source['rotation'][2])<1e-6,'Mesh and project agree on the abduction'
-    assert faces==manifest['rendered_faces']==len(model['elements'])*6
-    runtime=json.loads((ASSETS/'animations/yang_jian.json').read_text('utf8'))['clips']
+        elbow=bones_by_name[side+'_forearm']['pivot']
+        assert sign*elbow[0]>1.5 and elbow[1]>0,'Resting upper arms must clear the cuirass'
+    solids=model['elements']
+    assert manifest['cubes']==sum(e['type']=='cube' for e in solids)
+    assert manifest['meshes']==sum(e['type']=='mesh' for e in solids)>0
+    assert faces==manifest['rendered_faces']==sum(sum(f.get('texture') is not None for f in e['faces'].values()) for e in solids)
+    tri_count=sum(len(f['vertices'])==3 for e in solids if e['type']=='mesh' for f in e['faces'].values())
+    assert sum(f['v'][2]==f['v'][3] for b in bones_by_name.values() for f in b['faces'])==tri_count
+    assert set(mesh['anchors'])=={'third_eye','spear_tip','left_palm'}
+    assert mesh['anchors']['third_eye'][2]<-2 and mesh['anchors']['spear_tip'][1]<-32
+    runtime=json.loads((ASSETS/'boss_animations/yang_jian.json').read_text('utf8'))['clips']
     authored=json.loads((ROOT/'modeling/yang_jian-animation-source.json').read_text('utf8'))['clips']
     required={'idle','walk','combo','four_combo','six_combo','throw','throw_followup','recall','thrust_windup','thrust',
               'summon_hound','coordinated','guard','counter_windup','counter','phase_clear','death',
@@ -65,29 +71,36 @@ def main():
                 assert keys[0][0]==0 and abs(keys[-1][0]-clip['length'])<1e-6
                 if clip['loop']:
                     assert max(abs(a-b) for a,b in zip(keys[0][1:],keys[-1][1:]))<1e-4,(name,bone,'loop seam')
-    # A real arm abducts at the shoulder and carries the forearm back inward (the elbow's carrying
-    # angle), so every held pose must roll the forearm inward by a human amount: it used to splay
-    # outward instead, and the raised two-handed grip twisted it ~100 degrees the wrong way.
-    # Authored keys are checked rather than the bake, so the spline's tangent overshoot into the
-    # slam key is not mistaken for a pose regression.
-    def elbow_keys(name,first=None,last=None):
-        keys=[]
-        for side,sign in (('left',-1),('right',1)):
-            bone=side+'_forearm'
-            for key in authored[name]['bones'][bone]['rotation']:
-                if (first is None or key['time']>=first-.002) and (last is None or key['time']<=last+.002):
-                    keys.append((name,bone,sign,key))
-        return keys
-    def check_carrying_angle(keys):
-        for where,bone,sign,key in keys:
-            inward=sign*key['values'][2]
-            assert 4<=inward<=26,(where,bone,'The forearm must carry inward by the elbow angle',key)
-    hinged=['idle','walk','thrust_windup','counter_windup','guard','phase_clear','death','summon_hound',
-            'p2_idle_axe','p2_idle_sword','p2_idle_whip','p3_idle']
-    for name in hinged:
-        check_carrying_angle(elbow_keys(name))
-    # The two-handed carry keeps the same carrying angle from the summon grip (32) to the dive (68).
-    check_carrying_angle(elbow_keys('transition',1.6,3.4))
+        for side in ('left','right'):
+            # Check every baked sample, including held poses and recovery. The
+            # independently solved giant-axe floor contact needs 66 degrees of flexion.
+            limits=(70 if name=='transition' else 55,30,25)
+            for key in clip['bones'][side+'_hand']['rotation']:
+                assert all(abs(value)<=limit+1e-5 for value,limit in zip(key[1:],limits)), \
+                    (name,side,key,'Wrist folded beyond its authored range')
+            for key in clip['bones'][side+'_vambrace']['rotation']:
+                assert key[1:]==[0,0,0],(name,side,'Rigid cuff must follow the forearm')
+            for suffix in ('_arm','_forearm','_hand'):
+                source_keys=authored[name]['bones'][side+suffix]['rotation']
+                assert all(k['mode']=='linear' for k in source_keys),'BB must preview the same bounded bake'
+    # The arms are geometrically asymmetric. A fixed Euler-Z value is not a
+    # carrying-angle test. Inspect actual elbow-to-wrist geometry in every clip,
+    # including the interpolated poses between exported keys.
+    from check_yang_jian_arm_anatomy import audit
+    anatomy=audit(mesh,{'clips':runtime})
+    assert anatomy['passed'],('Reverse/lateral elbow fold',anatomy['failures'][:8])
+    # Measure the rendered tip at fractional ticks against the same clockwise
+    # sector and hand-height band used by the server, including the full turn.
+    from check_yang_jian_transition_grip import apply, bone_path, transform
+    weapon_path=next(path for root in mesh['bones'] if (path:=bone_path(root,'weapon')))
+    tip=[v*(3 if axis==1 else 1)/16 for axis,v in enumerate(mesh['anchors']['spear_tip'])]
+    for clip_name,arc in [('divine_sweep',170),('divine_spin',360)]:
+        for quarter in range(81):
+            tick=20+quarter/8
+            x,y,z=apply(transform(weapon_path,runtime[clip_name],tick/20),tip)
+            expected=90-arc/2+arc*(tick-20)/10
+            offset=math.remainder(math.degrees(math.atan2(-z,x))-expected,360)
+            assert abs(offset)<2 and abs(-.94*y-2)<.2,(clip_name,tick,'Spear misses sweep sector',offset,-.94*y)
     for suffix in ('','_axe','_sword','_whip'):
         name='step_approach'+suffix
         clip=runtime[name]
@@ -95,7 +108,13 @@ def main():
         assert authored[name]['timing']=={'prepare_ticks':[0,0],'travel_ticks':[0,8],'settle_ticks':[8,10],'offhand_throw_tick':0}
         assert all(k[1]==0 and k[3]==0 for k in clip['bones']['root']['position']), 'Server owns horizontal step motion'
         flick={round(k['time']*20,1):k['values'] for k in authored[name]['bones']['left_hand']['rotation']}
-        assert flick[0][0]==75 and flick[2][0]==91,'Offhand wrist must release on the first step tick'
+        # Release is immediate, with a small articulated follow-through. Old
+        # hard-coded 75/91-degree folds were the bug, not part of its timing.
+        # The release is carried by the whole arm now; a wrist-only fold is not
+        # required. The forearm reaches forward on the very first step tick.
+        upper=authored[name]['bones']['left_arm']['rotation'][0]['values']
+        assert upper[0]<-65,'Offhand must already be in the throwing pose at tick zero'
+        assert math.dist(flick[0],flick[2])>1,'Immediate throw must retain its follow-through'
         for bone in ('hips','waist','chest','left_thigh','right_thigh','left_shin','right_shin','left_foot','right_foot'):
             keys=clip['bones'][bone]['rotation']
             assert max(k[1] for k in keys)-min(k[1] for k in keys)>1,(name,bone,'Must articulate the whole step')

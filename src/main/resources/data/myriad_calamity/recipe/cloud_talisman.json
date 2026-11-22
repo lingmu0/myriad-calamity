@@ -7,18 +7,10 @@
     " E "
   ],
   "key": {
-    "F": {
-      "item": "minecraft:feather"
-    },
-    "G": {
-      "item": "minecraft:gold_ingot"
-    },
-    "P": {
-      "item": "minecraft:paper"
-    },
-    "E": {
-      "item": "minecraft:ender_pearl"
-    }
+    "F": "minecraft:feather",
+    "G": "minecraft:gold_ingot",
+    "P": "minecraft:paper",
+    "E": "minecraft:ender_pearl"
   },
   "result": {
     "id": "myriad_calamity:cloud_talisman",

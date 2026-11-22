@@ -1,16 +1,21 @@
 package net.xuwu.myriadcalamity.client;
 
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.MobRenderer;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.entity.CogworkDancer;
 
-public final class CogworkDancerRenderer extends MobRenderer<CogworkDancer,CogworkDancerModel> {
-    private static final ResourceLocation GOLD=MyriadCalamity.id("textures/entity/cogwork_dancer.png");
-    private static final ResourceLocation SILVER=MyriadCalamity.id("textures/entity/cogwork_dancer_silver.png");
+public final class CogworkDancerRenderer extends RiggedBossRenderer<CogworkDancer> {
+    private static final Identifier GOLD=MyriadCalamity.id("textures/entity/cogwork_dancer.png");
+    private static final Identifier SILVER=MyriadCalamity.id("textures/entity/cogwork_dancer_silver.png");
+    private final CogworkDancerModel rig;
     public CogworkDancerRenderer(EntityRendererProvider.Context context) {
-        super(context,new CogworkDancerModel(context.getResourceManager()),0.65F);
+        super(context,0.65F);
+        rig=new CogworkDancerModel(context.getResourceManager());
     }
-    @Override public ResourceLocation getTextureLocation(CogworkDancer entity) { return entity.follower()?SILVER:GOLD; }
+    @Override public void extractRenderState(CogworkDancer entity,State state,float partial) {
+        super.extractRenderState(entity,state,partial);
+        state.mesh=rig.pose(entity,partial);
+        state.texture=entity.follower()?SILVER:GOLD;
+    }
 }

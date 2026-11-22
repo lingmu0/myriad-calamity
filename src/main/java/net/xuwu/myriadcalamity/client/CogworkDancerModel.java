@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-import net.minecraft.client.model.EntityModel;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.Mth;
 import net.xuwu.myriadcalamity.MyriadCalamity;
@@ -23,11 +22,10 @@ import net.xuwu.myriadcalamity.entity.CombatMath;
 import org.joml.Quaternionf;
 
 /** Renders the same articulated mesh and keyframes exported from the editable Blockbench project. */
-public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
+public final class CogworkDancerModel {
     private record Face(float[][] vertices,float[] normal,boolean glow) {}
     private static final class Bone {
         String name;float[] pivot,baseRotation;
-        float[] position={0,0,0},rotation={0,0,0},scale={1,1,1};
         final List<Face> faces=new ArrayList<>();final List<Bone> children=new ArrayList<>();
     }
     private record Clip(float length,boolean loop,Map<String,Map<String,float[][]>> channels) {}
@@ -35,11 +33,10 @@ public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
     private final Map<String,Bone> bones=new HashMap<>();
     private final Map<String,Clip> clips=new HashMap<>();
     private final Map<CogworkDancer,AnimationPlayback> playback=new WeakHashMap<>();
-    private boolean halo;
     public CogworkDancerModel(ResourceManager resources) {
         JsonObject mesh=read(resources,"mesh/cogwork_dancer.json");
         for(JsonElement root:mesh.getAsJsonArray("bones"))roots.add(bone(root.getAsJsonObject()));
-        JsonObject animations=read(resources,"animations/cogwork_dancer.json").getAsJsonObject("clips");
+        JsonObject animations=read(resources,"boss_animations/cogwork_dancer.json").getAsJsonObject("clips");
         animations.entrySet().forEach(entry->{
             JsonObject data=entry.getValue().getAsJsonObject();Map<String,Map<String,float[][]>> channels=new HashMap<>();
             data.getAsJsonObject("bones").entrySet().forEach(b->{Map<String,float[][]> tracks=new HashMap<>();
@@ -64,8 +61,8 @@ public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
         for(JsonElement child:data.getAsJsonArray("children"))b.children.add(bone(child.getAsJsonObject()));
         bones.put(b.name,b);return b;
     }
-    @Override public void setupAnim(CogworkDancer dancer,float limbSwing,float limbSwingAmount,float age,float headYaw,float headPitch) {
-        float partial=Math.clamp(age-dancer.tickCount,0,1),elapsed=dancer.scheduledActionAge(partial),windup=dancer.attackWindup();
+    RiggedBossRenderer.Mesh pose(CogworkDancer dancer,float partial) {
+        float age=dancer.tickCount+partial,elapsed=dancer.scheduledActionAge(partial),windup=dancer.attackWindup();
         String name;float time;
         if(dancer.deathTime>0){name="death";time=(dancer.deathTime+partial)/20F;}
         else if(elapsed<0 || dancer.action()==CogworkDancer.IDLE){name=dancer.phase()==4?"solo_idle":"idle";time=age/20F;}
@@ -99,28 +96,30 @@ public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
         if(name.equals("death") || name.endsWith("recover"))transition=4;
         Map<String,AnimationPlayback.Pose> pose=playback.computeIfAbsent(dancer,ignored->new AnimationPlayback())
             .apply(dancer.action()+":"+name,age,transition,sampled);
-        for(Bone bone:bones.values()) {
-            AnimationPlayback.Pose value=pose.get(bone.name);
-            bone.position=value.position();bone.rotation=value.rotation();bone.scale=value.scale();
-        }
-        halo=dancer.deathTime==0 && elapsed>=0 && dancer.action()!=CogworkDancer.IDLE && (elapsed<windup || dancer.action()==CogworkDancer.SPIN || dancer.action()==CogworkDancer.REWIND || dancer.action()==CogworkDancer.BARRAGE);
+        boolean halo=dancer.deathTime==0 && elapsed>=0 && dancer.action()!=CogworkDancer.IDLE
+            && (elapsed<windup || dancer.action()==CogworkDancer.SPIN || dancer.action()==CogworkDancer.REWIND || dancer.action()==CogworkDancer.BARRAGE);
+        return (stack,vertices,light,overlay,color)->draw(pose,halo,stack,vertices,light,overlay,color);
     }
-    @Override public void renderToBuffer(PoseStack pose,VertexConsumer buffer,int light,int overlay,int color) {
+    private void draw(Map<String,AnimationPlayback.Pose> animation,boolean halo,PoseStack pose,
+                      VertexConsumer buffer,int light,int overlay,int color) {
         pose.pushPose();pose.translate(0,1.5,0);
-        for(Bone bone:roots)renderBone(bone,pose,buffer,light,overlay,color);
+        for(Bone bone:roots)renderBone(bone,animation,halo,pose,buffer,light,overlay,color);
         pose.popPose();
     }
-    private void renderBone(Bone bone,PoseStack pose,VertexConsumer buffer,int light,int overlay,int color) {
+    private void renderBone(Bone bone,Map<String,AnimationPlayback.Pose> animation,boolean halo,
+                            PoseStack pose,VertexConsumer buffer,int light,int overlay,int color) {
         if(bone.name.equals("halo")&&!halo)return;
+        AnimationPlayback.Pose transform=animation.get(bone.name);
+        float[] position=transform.position(),rotation=transform.rotation(),scale=transform.scale();
         pose.pushPose();
-        pose.translate((bone.pivot[0]+bone.position[0])/16F,(bone.pivot[1]+bone.position[1])/16F,(bone.pivot[2]+bone.position[2])/16F);
-        pose.mulPose(new Quaternionf().rotationZYX((bone.baseRotation[2]+bone.rotation[2])*Mth.DEG_TO_RAD,(bone.baseRotation[1]+bone.rotation[1])*Mth.DEG_TO_RAD,(bone.baseRotation[0]+bone.rotation[0])*Mth.DEG_TO_RAD));
-        pose.scale(bone.scale[0],bone.scale[1],bone.scale[2]);
+        pose.translate((bone.pivot[0]+position[0])/16F,(bone.pivot[1]+position[1])/16F,(bone.pivot[2]+position[2])/16F);
+        pose.mulPose(new Quaternionf().rotationZYX((bone.baseRotation[2]+rotation[2])*Mth.DEG_TO_RAD,(bone.baseRotation[1]+rotation[1])*Mth.DEG_TO_RAD,(bone.baseRotation[0]+rotation[0])*Mth.DEG_TO_RAD));
+        pose.scale(scale[0],scale[1],scale[2]);
         for(Face face:bone.faces) for(float[] v:face.vertices()) {
             buffer.addVertex(pose.last(),v[0]/16F,v[1]/16F,v[2]/16F).setColor(color).setUv(v[3],v[4]).setOverlay(overlay)
                 .setLight(face.glow()?15728880:light).setNormal(pose.last(),face.normal()[0],face.normal()[1],face.normal()[2]);
         }
-        for(Bone child:bone.children)renderBone(child,pose,buffer,light,overlay,color);
+        for(Bone child:bone.children)renderBone(child,animation,halo,pose,buffer,light,overlay,color);
         pose.popPose();
     }
 }
