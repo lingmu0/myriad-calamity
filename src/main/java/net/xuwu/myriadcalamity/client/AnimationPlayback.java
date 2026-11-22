@@ -2,6 +2,7 @@ package net.xuwu.myriadcalamity.client;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /** One entity's transition history; never shared between the two rendered dancers. */
 public final class AnimationPlayback {
@@ -12,6 +13,11 @@ public final class AnimationPlayback {
     private Map<String,float[]> rotationOffsets=Map.of();
 
     public Map<String,Pose> apply(String key,float clock,float duration,Map<String,Pose> sampled) {
+        return apply(key,clock,duration,sampled,Set.of());
+    }
+
+    /** Bounded joints must unwind inside their limits instead of wrapping through 180 degrees. */
+    public Map<String,Pose> apply(String key,float clock,float duration,Map<String,Pose> sampled,Set<String> boundedJoints) {
         boolean reset=clipKey==null || clock<lastClock || clock-lastClock>10;
         if(reset) {
             clipKey=key;source=Map.of();rotationOffsets=Map.of();transitionDuration=0;
@@ -20,7 +26,7 @@ public final class AnimationPlayback {
             rotationOffsets=new HashMap<>();
             sampled.forEach((name,pose)->{
                 Pose previous=source.get(name);
-                if(previous!=null) {
+                if(previous!=null && !boundedJoints.contains(name)) {
                     float[] shift=new float[3];
                     for(int axis=0;axis<3;axis++)
                         shift[axis]=(float)(360*Math.floor((previous.rotation()[axis]-pose.rotation()[axis]+180)/360));

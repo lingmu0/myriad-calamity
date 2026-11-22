@@ -11,18 +11,20 @@ def check(ok,message):
     if not ok:raise AssertionError(message)
 def read_png(p):
     data=p.read_bytes();check(data[:8]==b'\x89PNG\r\n\x1a\n',f'PNG signature: {p}')
-    at=8;stream=b'';width=height=0
+    at=8;stream=b'';width=height=channels=0
     while at<len(data):
         n=struct.unpack('>I',data[at:at+4])[0];tag=data[at+4:at+8];block=data[at+8:at+8+n]
         crc=struct.unpack('>I',data[at+8+n:at+12+n])[0]
         check(zlib.crc32(tag+block)&0xffffffff==crc,f'PNG checksum: {p}')
         if tag==b'IHDR':
-            width,height,depth,kind,_,_,_=struct.unpack('>IIBBBBB',block)
-            check(depth==8 and kind==6,f'RGBA PNG: {p}')
+            width,height,depth,kind,_,_,interlace=struct.unpack('>IIBBBBB',block)
+            opaque_atlas=p==RES/f'assets/{NS}/textures/entity/yang_jian.png'
+            check(depth==8 and interlace==0 and (kind==6 or opaque_atlas and kind==2),f'PNG color format: {p}')
+            channels=3 if kind==2 else 4
         if tag==b'IDAT':stream+=block
         at+=12+n
     raw=zlib.decompress(stream)
-    check(len(raw)==height*(1+width*4),f'PNG scanline size: {p}')
+    check(len(raw)==height*(1+width*channels),f'PNG scanline size: {p}')
     return width,height
 jsons={str(p.relative_to(RES)).replace('\\','/'):json.loads(p.read_text('utf8')) for p in RES.rglob('*.json')}
 langs=[jsons[f'assets/{NS}/lang/{lang}.json'] for lang in ['zh_cn','en_us']]
@@ -85,7 +87,7 @@ for key,name in [('music.yang_jian_bgm_intro','yang_jian_bgm_intro'),('music.yan
 for ref in jsons[f'assets/{NS}/models/block/dance_altar.json']['textures'].values():
  if ref.startswith(NS+':'):check((RES/f'assets/{NS}/textures/{ref.split(":",1)[1]}.png').exists(),'Altar texture exists')
 mesh=jsons[f'assets/{NS}/mesh/cogwork_dancer.json']
-clips=jsons[f'assets/{NS}/animations/cogwork_dancer.json']['clips']
+clips=jsons[f'assets/{NS}/boss_animations/cogwork_dancer.json']['clips']
 names=set();face_count=0
 import math
 def inspect_bone(bone):

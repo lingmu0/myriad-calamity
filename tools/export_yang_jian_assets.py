@@ -1,4 +1,4 @@
-"""Lossless cuboid/UV export of the approved Blockbench Yang Jian model.
+"""Export Yang Jian's Blockbench cuboids and polygon meshes to the animated game rig.
 
 The artist's source project is read only. Bone pivots and rest rotations are
 retained, so the forward head, shallow breastplate and open collar stay intact.
@@ -11,7 +11,7 @@ import json
 import math
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'modeling/yang_jian_v3.bbmodel'
+SOURCE = ROOT / 'modeling/yang_jian_v4.bbmodel'
 ASSETS = ROOT / 'src/main/resources/assets/myriad_calamity'
 
 
@@ -65,6 +65,39 @@ def cube_faces(element):
         yield result
 
 
+def mesh_faces(element):
+    origin = element['origin']
+    vertices = {}
+    for key, local in element['vertices'].items():
+        offset = rotate(local, element.get('rotation', [0, 0, 0]))
+        vertices[key] = [a+b for a,b in zip(origin,offset)]
+    for face in element['faces'].values():
+        if face.get('texture') is None:
+            continue
+        keys=face['vertices']
+        if len(keys) not in (3,4):
+            raise ValueError(f"Triangulate {element['name']} before exporting")
+        yield [(vertices[k],face['uv'][k]) for k in keys]
+
+
+def painted_eye(plate):
+    # Center of the third-eye inlay on the painted facial plate, in atlas pixels.
+    u,v=77.0,630.5
+    for face in mesh_faces(plate):
+        if len(face)!=3 or not all(4<=uv[0]<=147 and 606<=uv[1]<=752 for _,uv in face):
+            continue
+        (a,(ax,ay)),(b,(bx,by)),(c,(cx,cy))=face
+        det=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax)
+        if abs(det)<1e-9:continue
+        s=((u-ax)*(cy-ay)-(v-ay)*(cx-ax))/det
+        t=((bx-ax)*(v-ay)-(by-ay)*(u-ax))/det
+        if min(s,t,1-s-t)>=-1e-6:
+            p=[a[i]+s*(b[i]-a[i])+t*(c[i]-a[i]) for i in range(3)]
+            p[2]-=.025
+            return p
+    raise ValueError('Third-eye inlay missing from facial plate')
+
+
 def export():
     model = json.loads(SOURCE.read_text('utf8'))
     groups = {g['uuid']: g for g in model['groups']}
@@ -72,6 +105,7 @@ def export():
     texture = model['textures'][0]
     tw, th = texture['width'], texture['height']
     counts = {'faces': 0, 'elements': 0}
+    anchors={}
 
     def node(entry, parent_origin):
         g = groups[entry['uuid']]
@@ -85,7 +119,18 @@ def export():
                 continue
             element = elements[child]
             counts['elements'] += 1
-            for points in cube_faces(element):
+            if element['name']=='visage / painted planes':
+                anchors['third_eye']=convert(subtract(painted_eye(element),origin))
+            elif element['name']=='central double-edged blade':
+                points=[p for face in mesh_faces(element) for p,_ in face]
+                top=max(p[1] for p in points)
+                rim={tuple(p) for p in points if abs(p[1]-top)<1e-5}
+                tip=[sum(p[i] for p in rim)/len(rim) for i in range(3)]
+                anchors['spear_tip']=convert(subtract(tip,origin))
+            elif element['name']=='gauntlet / palm':
+                anchors['left_palm']=convert(subtract(element['origin'],origin))
+            polygons=mesh_faces(element) if element['type']=='mesh' else cube_faces(element)
+            for points in polygons:
                 vertices = [convert(subtract(p, origin)) + [round(uv[0]/tw, 8), round(uv[1]/th, 8)]
                             for p, uv in reversed(points)]
                 a = subtract(vertices[1], vertices[0])
@@ -94,21 +139,23 @@ def export():
                 length = math.sqrt(sum(v*v for v in normal))
                 if length < 1e-9:
                     raise ValueError('Degenerate face: ' + element['name'])
-                # Metal uses the scene light. Only the inlaid third-eye gem glows.
-                glow = 'third_eye_gem' in element['name']
-                out['faces'].append({'v': vertices, 'n': [round(v/length, 6) for v in normal], 'glow': glow})
+                if len(vertices)==3:
+                    vertices.append(vertices[-1])
+                out['faces'].append({'v': vertices, 'n': [round(v/length, 6) for v in normal], 'glow': False})
                 counts['faces'] += 1
         return out
 
     mesh = {'format': 1, 'source': 'Approved Blockbench MCP model, rest pose preserved',
-            'texture_size': [tw, th], 'bones': [node(n, [0,0,0]) for n in model['outliner']]}
+            'texture_size': [tw, th], 'bones': [node(n, [0,0,0]) for n in model['outliner']], 'anchors':anchors}
     assert counts['elements'] == len(elements)
+    assert set(anchors)=={'third_eye','spear_tip','left_palm'}
     (ASSETS/'mesh').mkdir(parents=True, exist_ok=True)
     (ASSETS/'mesh/yang_jian.json').write_text(json.dumps(mesh, separators=(',', ':')), 'utf8')
     (ASSETS/'textures/entity').mkdir(parents=True, exist_ok=True)
     (ASSETS/'textures/entity/yang_jian.png').write_bytes(base64.b64decode(texture['source'].split(',',1)[1]))
-    manifest = {'source': str(SOURCE.relative_to(ROOT)), 'source_sha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
-                'cubes': counts['elements'], 'bones': len(groups), 'rendered_faces': counts['faces'],
+    manifest = {'source': SOURCE.relative_to(ROOT).as_posix(), 'source_sha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+                'cubes': sum(e['type']=='cube' for e in elements.values()), 'meshes':sum(e['type']=='mesh' for e in elements.values()),
+                'bones': len(groups), 'rendered_faces': counts['faces'],
                 'texture_size': [tw,th], 'preserves_rest_pose': True}
     (ROOT/'modeling/yang_jian-runtime-manifest.json').write_text(json.dumps(manifest, indent=2), 'utf8')
     print(json.dumps(manifest, ensure_ascii=False))

@@ -4,9 +4,10 @@ import copy
 import json
 import uuid
 import sys
+from export_yang_jian_assets import SOURCE
 
 ROOT=Path(__file__).resolve().parents[1]
-model=json.loads((ROOT/'modeling/yang_jian_v3.bbmodel').read_text('utf8'))
+model=json.loads(SOURCE.read_text('utf8'))
 source=json.loads((ROOT/'modeling/yang_jian-animation-source.json').read_text('utf8'))['clips']
 weapons=json.loads((ROOT/'modeling/yang_jian_p2_weapon_parts.json').read_text('utf8'))
 groups={g['name']:g for g in model['groups']}
@@ -81,4 +82,4 @@ if phase3:
     for animation in animations:animation['selected']=animation['name']=='animation.p3_idle'
 target=ROOT/('modeling/yang_jian_p3.bbmodel' if phase3 else 'modeling/yang_jian_p2.bbmodel')
 target.write_text(json.dumps(model,separators=(',',':'),ensure_ascii=False),'utf8')
-print(f'{"P3" if phase3 else "P2"} editable project: {len(model["elements"])} cubes, {len(model["groups"])} bones, {len(animations)} clips')
+print(f'{"P3" if phase3 else "P2"} editable project: {len(model["elements"])} model elements, {len(model["groups"])} bones, {len(animations)} clips')

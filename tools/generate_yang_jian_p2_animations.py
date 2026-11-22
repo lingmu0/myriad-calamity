@@ -192,12 +192,26 @@ def append_p2(pose, finish, attack_pose):
         ready=pose(hips=[5,0,0],waist=[5,0,0],chest=[7,0,0],head=[-9,0,0],
             right_arm=[60,-15,-28],right_forearm=[-18,0,21],right_hand=[-100,0,-14],
             left_arm=[35,0,33],left_forearm=[-38,0,-18],left_thigh=[15,0,-7],right_thigh=[-15,0,7])
-        load=copy.deepcopy(ready);load['root']=[0,-arc/2,0]
+        # The lash is carried by the arm as well as the body. The whip hand is drawn in for the
+        # wind-up, opens out through the middle of the arc and cracks the wrist at the apex, while
+        # the empty hand counterswings. Without this the sweep read as a stiff body rotation.
+        load=copy.deepcopy(ready)
+        load['root']=[0,-arc/2,0]
+        load['right_arm']=[72,-19,-40];load['right_forearm']=[-30,0,21];load['right_hand']=[-126,0,-14]
+        load['left_arm']=[30,0,42];load['left_forearm']=[-46,0,-18]
         frames=[frame(0,pose()),frame(windup*.55,load,-.4),frame(windup,load,-.4)]
         for i in range(1,active+1):
+            s=i/active
             p=copy.deepcopy(ready)
             # Increasing authored yaw is the clockwise look every rotating attack shares.
             p['root']=[0,-arc/2+arc*i/active,0]
+            # 0 -> 1 -> 0 across the active ticks: out of the wind-up, through the apex, back in.
+            lash=math.sin(s*math.pi)
+            p['right_arm']=[60-26*lash,-15+10*lash,-28+46*lash]
+            p['right_forearm']=[-18+17*lash,0,21]
+            p['right_hand']=[-100-36*lash,0,-14]
+            p['left_arm']=[35+9*lash,0,33+15*lash]
+            p['left_forearm']=[-38+11*lash,0,-18]
             p['left_thigh']=[math.sin(i/active*math.pi*2)*16,0,-7]
             p['right_thigh']=[-p['left_thigh'][0],0,7]
             p['chest'][2]=math.sin(i/active*math.pi)*-5

@@ -68,7 +68,7 @@ def smooth(t):
 
 def analyze():
     mesh = json.loads((ASSETS / 'mesh/yang_jian.json').read_text('utf8'))
-    clip = json.loads((ASSETS / 'animations/yang_jian.json').read_text('utf8'))['clips']['transition']
+    clip = json.loads((ASSETS / 'boss_animations/yang_jian.json').read_text('utf8'))['clips']['transition']
     axe = json.loads((ASSETS / 'mesh/yang_jian_weapons.json').read_text('utf8'))['weapons']['axe']
     vertices = {tuple(v[:3]) for face in axe['faces'] for v in face['v']}
     path = next(path for bone in mesh['bones'] if (path := bone_path(bone, 'weapon')))

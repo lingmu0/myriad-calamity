@@ -85,7 +85,7 @@ public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard>
         for(int i=0;i<segments;i++) {
             double a=i*Math.PI*2/segments,b=(i+1)*Math.PI*2/segments;
             double ra=radius*(1+.07*arcNoise(seed,i,41,frame,blend,0));
-            double rb=radius*(1+.07*arcNoise(seed,i+1,41,frame,blend,1));
+            double rb=radius*(1+.07*arcNoise(seed,(i+1)%segments,41,frame,blend,0));
             Vec3 x=center.add(Math.cos(a)*ra,.045,Math.sin(a)*ra);
             Vec3 y=center.add(Math.cos(b)*rb,.045,Math.sin(b)*rb);
             LightningTrailRenderer.ribbon(v,pose,x,y,outerWidth,outer);
@@ -225,12 +225,17 @@ public final class YangJianHazardRenderer extends EntityRenderer<YangJianHazard>
         return a+(b-a)*blend;
     }
     static void tube(VertexConsumer v,PoseStack pose,Vec3 from,Vec3 to,double radius,int color) {
-        Vec3 d=to.subtract(from).normalize();if(d.lengthSqr()<1E-8)return;
+        Vec3 segment=to.subtract(from);
+        double length=segment.length();
+        if(length<1E-4)return;
+        Vec3 d=segment.scale(1/length);
+        Vec3 throat=from.add(d.scale(Math.min(length*.35,.75)));
         Vec3 u=d.cross(Math.abs(d.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize(),w=d.cross(u).normalize();
         for(int i=0;i<12;i++) {
             double a=i*Math.PI/6,b=(i+1)*Math.PI/6;
             Vec3 x=u.scale(Math.cos(a)*radius).add(w.scale(Math.sin(a)*radius)),y=u.scale(Math.cos(b)*radius).add(w.scale(Math.sin(b)*radius));
-            LightningTrailRenderer.quad(v,pose,from.add(x),to.add(x),to.add(y),from.add(y),color);
+            LightningTrailRenderer.quad(v,pose,from.add(x.scale(.12)),throat.add(x),throat.add(y),from.add(y.scale(.12)),color);
+            LightningTrailRenderer.quad(v,pose,throat.add(x),to.add(x),to.add(y),throat.add(y),color);
         }
     }
     private static void circle(VertexConsumer v,PoseStack pose,Vec3 center,double radius,int edge,int fillAlpha) {

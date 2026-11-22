@@ -43,6 +43,8 @@ import net.xuwu.myriadcalamity.config.MyriadConfig;
 
 /** Server-authoritative three-phase encounter. Only the final phase can be killed normally. */
 public final class YangJian extends Monster {
+    /** Neutral forehead height of the battle rig, in blocks above the platform. */
+    public static final double THIRD_EYE_HEIGHT=3.047;
     public static final int IDLE=0,COMBO=1,FOUR_COMBO=2,SIX_COMBO=3,THROW=4,THRUST=5,
         SUMMON_HOUND=6,COORDINATED=7,GUARD=8,COUNTER=9,PHASE_CLEAR=10,TRANSITION=12,
         AXE_SUMMON=13,AXE_SLAM=14,AXE_COMBO=15,FLYING_SWORDS=16,DRAW_SLASH=17,
@@ -124,7 +126,7 @@ public final class YangJian extends Monster {
             && approachAge(0)>=0 && approachAge(0)<YangJianFootwork.DURATION;
     }
     public float approachAge(float partial) { return level().getGameTime()-entityData.get(APPROACH_STARTED)+partial; }
-    public Vec3 eyeBeamOrigin() { return position().add(0,2.98,0).add(getLookAngle().multiply(.3,0,.3)); }
+    public Vec3 eyeBeamOrigin() { return position().add(0,THIRD_EYE_HEIGHT,0).add(getLookAngle().multiply(.24,0,.24)); }
     public float actionAge(float partial) { return Math.max(0,level().getGameTime()-entityData.get(STARTED)+partial); }
     public int attackWindup() { YangJianSkill skill=YangJianSkill.forAction(action());return skill==null?0:skill.stepWindup(0); }
     public int comboStep() { return entityData.get(PLAN).getInt("step"); }
@@ -502,7 +504,7 @@ public final class YangJian extends Monster {
         if(destination.distanceToSqr(sweepBodyPosition)<4)destination=clampPoint(sweepBodyPosition.add(side.scale(index%2==0?3.2:-3.2)));
         return new Vec3(destination.x,flightAnchor.y,destination.z);
     }
-    private Vec3 sweepEyeOrigin(Vec3 base) { return base.add(0,2.98,0); }
+    private Vec3 sweepEyeOrigin(Vec3 base) { return base.add(0,THIRD_EYE_HEIGHT,0); }
     private static float sweepYaw(Vec3 from,Vec3 to) {
         Vec3 direction=to.subtract(from);return (float)(Math.atan2(direction.z,direction.x)*Mth.RAD_TO_DEG)-90;
     }
@@ -1140,12 +1142,21 @@ public final class YangJian extends Monster {
         if(phase()==1)beginTransition();else beginEyeOpening();
     }
     @Override public void setHealth(float value) { super.setHealth(applyingDamage?YangJianSkill.protectedHealth(value):value); }
+    private void cancelForPhaseTransition() {
+        // Preserve the encounter target. Only the canceled move loses its lock.
+        if(!validTarget(getTarget())) {
+            LivingEntity target=lockedEntity();
+            if(target!=null)setTarget(target);
+        }
+        cancelAttack();
+        clearSummons();
+    }
     private void beginTransition() {
         Vec3 center=isArenaBoss()?Vec3.atBottomCenterOf(arenaCenter().above()):position();
         beginThunderAxeTransition(center,true);
     }
     private void beginThunderAxeTransition(Vec3 center,boolean announce) {
-        cancelAttack();clearSummons();setTarget(null);transitionRemaining=YangJianTransition.DURATION;
+        cancelForPhaseTransition();transitionRemaining=YangJianTransition.DURATION;
         Vec3 start=isArenaBoss()?clampPoint(position()):new Vec3(getX(),center.y,getZ());
         setPos(start);setDeltaMovement(Vec3.ZERO);setNoGravity(true);fallDistance=0;
         entityData.set(ACTION,TRANSITION);entityData.set(STARTED,level().getGameTime());entityData.set(WEAPON,1);
@@ -1206,7 +1217,7 @@ public final class YangJian extends Monster {
         playSound(SoundEvents.TRIDENT_THUNDER.value(),1.2F,1.1F);sparks(position().add(0,2,0),2,40);
     }
     private void beginEyeOpening() {
-        cancelAttack();clearSummons();setTarget(null);transitionRemaining=YangJianPhaseThree.OPEN_TICKS;
+        cancelForPhaseTransition();transitionRemaining=YangJianPhaseThree.OPEN_TICKS;
         if(isArenaBoss())setPos(clampPoint(position()));
         entityData.set(ACTION,THIRD_EYE_OPEN);entityData.set(STARTED,level().getGameTime());entityData.set(WEAPON,0);
         healthBar.setName(Component.translatable("boss.myriad_calamity.yang_jian_eye_open"));

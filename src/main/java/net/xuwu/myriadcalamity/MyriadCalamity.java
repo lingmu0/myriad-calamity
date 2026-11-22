@@ -58,7 +58,7 @@ public final class MyriadCalamity {
             .fireImmune().clientTrackingRange(10).updateInterval(1).build(ID+":cogwork_blade"));
     public static final DeferredHolder<SoundEvent, SoundEvent> DANCER_MUSIC_PHASE1 = music("music.cogwork_dancer_phase1");
     public static final DeferredHolder<EntityType<?>, EntityType<YangJian>> YANG_JIAN = ENTITIES.register("yang_jian",
-        () -> EntityType.Builder.of(YangJian::new, MobCategory.MONSTER).sized(1.25F, 3.35F)
+        () -> EntityType.Builder.of(YangJian::new, MobCategory.MONSTER).sized(1.4F, 3.6F)
             .fireImmune().clientTrackingRange(16).updateInterval(1).build(ID + ":yang_jian"));
     public static final DeferredHolder<EntityType<?>, EntityType<CelestialHound>> CELESTIAL_HOUND = ENTITIES.register("celestial_hound",
         () -> EntityType.Builder.of(CelestialHound::new, MobCategory.MONSTER).sized(.8F, 1.05F)

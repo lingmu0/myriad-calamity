@@ -1,9 +1,10 @@
 {
-  "source": "modeling\\yang_jian_v3.bbmodel",
-  "source_sha256": "7a41802624f2e52b16e0263c1929424a635b74b30248d3f1360b832c28c95ed0",
-  "cubes": 2285,
+  "source": "modeling/yang_jian_v4.bbmodel",
+  "source_sha256": "97864f5abe8e4aca2282c35c0bec71818dfd2517f20e32a6cd9c345489590a2c",
+  "cubes": 831,
+  "meshes": 270,
   "bones": 46,
-  "rendered_faces": 13710,
+  "rendered_faces": 12811,
   "texture_size": [
     2048,
     2048

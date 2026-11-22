@@ -33,8 +33,9 @@ public final class YangJianRenderer extends MobRenderer<YangJian,YangJianModel> 
         return super.getRenderType(boss,visible,translucent,glowing);
     }
     @Override public void render(YangJian boss,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
+        model.clearRenderedPose();
         super.render(boss,yaw,partial,pose,buffers,light);
-        if(boss.isAlive() && (boss.phase()>=2 || boss.action()==YangJian.TRANSITION))
+        if(boss.isAlive() && model.hasRenderedPose())
             YangJianCombatEffects.render(boss,model,partial,pose,buffers);
     }
 }

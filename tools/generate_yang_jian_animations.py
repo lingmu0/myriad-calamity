@@ -7,15 +7,17 @@ small delays. Sparse editable source curves are saved alongside the runtime data
 from pathlib import Path
 import json
 import math
+import copy
 from animation_baker import bake, sample
+from yang_jian_arm_motion import improve_pose, bake_forearm
+from export_yang_jian_assets import SOURCE as MODEL
 
 ROOT = Path(__file__).resolve().parents[1]
-# Elbow carrying angle: how far the forearm is rolled back inward relative to the abducted
-# upper arm. A real arm is widest at the shoulder and narrows towards the hands; every
-# generated pose (P1/P2/P3, carries, stances and the two-handed grip) shares this value.
+# Legacy authoring convention only. Physical flex/carry/twist are calibrated to
+# each side's actual geometry by the shared retargeter before any curve is baked.
 CARRY_ANGLE = 18
 ASSETS = ROOT/'src/main/resources/assets/myriad_calamity'
-GROUPS = {g['name'] for g in json.loads((ROOT/'modeling/yang_jian_v3.bbmodel').read_text('utf8'))['groups']}
+GROUPS = {g['name'] for g in json.loads(MODEL.read_text('utf8'))['groups']}
 CLIPS = {}
 SOURCE = {}
 
@@ -40,7 +42,9 @@ def pose(**overrides):
 def attack_pose(kind, loaded=False, follow=False, side=1):
     # Each strike is driven by the hips, then chest, shoulder, elbow and wrist.
     if kind == 'overhead':
-        return pose(hips=[-4 if loaded else 13,0,0], waist=[-9 if loaded else 17,0,0],
+        # Two-handed: the free hand supports the weapon through the wind-up and the slam, so its
+        # motion matches the striking arm instead of gesturing on its own.
+        return pose(two_handed=True, hips=[-4 if loaded else 13,0,0], waist=[-9 if loaded else 17,0,0],
             chest=[-12 if loaded else 21,0,0], neck=[8 if loaded else -12,0,0],
             head=[6 if loaded else -10,0,0], right_arm=[134 if loaded else 50,-8,-12],
             right_forearm=[-48 if loaded else -13,0,13], right_hand=[-105 if loaded else -126,0,0],
@@ -88,12 +92,13 @@ def curves(frames, length, loop=False):
 
 
 def finish(name, frames, ticks, loop=False, metadata=None):
-    # An elbow only flexes (X) and pronates (Y): its sideways channel is the structural carrying
-    # angle, never a pose value. Whatever bank the authoring put on a forearm moves up to the
-    # shoulder, which is where a real arm shapes a swing plane, so no pose - not even a wide slash -
-    # bends the forearm out of the elbow's plane.
+    # Poses are shared between clips and repeated hold keys. Never retarget the
+    # author's dictionaries in place, or subsequent clips solve an already fixed arm.
+    frames = copy.deepcopy(frames)
+    # Convert legacy authoring to its old full pose before anatomical retargeting.
+    # The fixed legacy roll is never used as the actual output elbow constraint.
     seen=set()
-    for _,p,_ in frames:
+    for tick,p,_ in frames:
         if id(p) in seen:
             continue
         seen.add(id(p))
@@ -102,7 +107,47 @@ def finish(name, frames, ticks, loop=False, metadata=None):
             if arm in p and fore in p:
                 p[arm][2]+=p[fore][2]-sign*CARRY_ANGLE
                 p[fore][2]=sign*CARRY_ANGLE
+    legacy = curves(copy.deepcopy(frames), ticks/20, loop) if name == 'transition' else None
+    seen=set()
+    for tick,p,_ in frames:
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
+        improve_pose(p, name, tick)
     bones = curves(frames, ticks/20, loop)
+    if name in ('divine_sweep','divine_spin'):
+        for key in bones['root']['rotation']:
+            if 20 <= key['time']*20 <= 30:
+                key['mode']='linear'
+    # Bounded smooth curves prevent the wrist recoiling past its authored joint
+    # limits. Store the bake as editable linear keys too: Blockbench has no PCHIP.
+    # Forearms interpolate flex/carry/twist, then convert to runtime Euler angles.
+    # Interpolating Euler channels first would reintroduce reverse bending in-between.
+    for side in ('left', 'right'):
+        for suffix in ('_arm', '_forearm', '_hand'):
+            keys = bones[side + suffix]['rotation']
+            for key in keys:
+                key['mode'] = 'pchip'
+            output=[]
+            baked=bake_forearm(side,keys,ticks/20,loop) if suffix=='_forearm' else bake(keys,ticks/20,loop)
+            for key in baked:
+                values=key[1:]
+                if legacy and side=='right' and key[0] >= 72/20:
+                    # This independently fitted floor-contact span already has
+                    # valid forward elbows. Keep its exact weapon registration.
+                    values=sample(legacy[side+suffix]['rotation'],key[0],loop)
+                output.append({'time':key[0],'values':values,'mode':'linear'})
+            bones[side + suffix]['rotation']=output
+    if name == 'transition':
+        from yang_jian_axe_descent import create_tracks
+        preview_clip={'bones':{b:{c:bake(keys,ticks/20,loop) for c,keys in channels.items()}
+                               for b,channels in bones.items()}}
+        # Moving the elbow to its natural side changes the chain's interpolation.
+        # Follow the axe's short rotation arc during descent and keep floor contact.
+        for bone,keys in create_tracks(preview_clip).items():
+            kept=[key for key in bones[bone]['rotation'] if key['time']<68/20 or key['time']>72/20]
+            kept.extend({'time':key[0],'values':key[1:],'mode':'linear'} for key in keys)
+            bones[bone]['rotation']=sorted(kept,key=lambda key:key['time'])
     # Overlapping plates, split cloth and hair follow the preceding body motion.
     secondary = ['left_shoulder','right_shoulder','left_vambrace','right_vambrace',
         'left_skirt','right_skirt','left_skirt_lower','right_skirt_lower',
@@ -116,17 +161,28 @@ def finish(name, frames, ticks, loop=False, metadata=None):
         keys = []
         for tick in range(ticks+1):
             t = tick/20
-            delay = 1.5 if 'tip' in b or '03' in b else 1 if 'hair' in b else .5
+            tail_segment=int(b[-1]) if b.startswith('hair_back_') else 0
+            delay = .75+tail_segment*.8 if tail_segment else 1.6 if 'tip' in b or 'lower' in b else .65
             src_time = ((tick-delay)/20)%(ticks/20) if loop else max(0,(tick-delay)/20)
             chest = sample(bones['chest']['rotation'], src_time, loop)
             hips = sample(bones['hips']['rotation'], src_time, loop)
             side = -1 if b.startswith('left') else 1
             frequency = 2*math.pi/(ticks/20) if loop else 5.7
             wave = math.sin(t*frequency+delay+side*.4)
-            if 'hair' in b or b in ('topknot','crown'):
-                amount = .3 if 'back' in b else .13
-                v = [-chest[0]*amount+wave*1.1,-chest[1]*amount,-chest[2]*.25+wave*.7]
-            elif 'shoulder' in b or 'vambrace' in b:
+            if b in ('hair_top','topknot','crown'):
+                # Skull, hairline, and bound crown move as one with the face.
+                v=[0,0,0]
+            elif tail_segment:
+                amount=.075+.038*tail_segment
+                v=[-chest[0]*amount+wave*.48*tail_segment,-chest[1]*amount,
+                   -chest[2]*amount+wave*.32*tail_segment]
+            elif b.endswith('hair_lock'):
+                v=[max(-2,min(2,-chest[0]*.04+wave*.35)),0,max(-1.2,min(1.2,-chest[2]*.04))]
+            elif 'vambrace' in b:
+                # The vambrace is rigidly attached to the forearm. The old delayed
+                # upper-arm rotation made its cuff tear away from the wrist.
+                v = [0,0,0]
+            elif 'shoulder' in b:
                 arm = sample(bones['left_arm' if side<0 else 'right_arm']['rotation'], src_time, loop)
                 v = [-arm[0]*.12,0,-arm[2]*.14]
             else:
@@ -244,8 +300,8 @@ def main():
     append_p3(pose,finish,attack_pose)
     from generate_yang_jian_step_animations import append_steps
     append_steps(pose,finish)
-    (ASSETS/'animations').mkdir(parents=True,exist_ok=True)
-    (ASSETS/'animations/yang_jian.json').write_text(json.dumps({'format':1,'sampling_fps':60,'clips':CLIPS},separators=(',',':')),'utf8')
+    (ASSETS/'boss_animations').mkdir(parents=True,exist_ok=True)
+    (ASSETS/'boss_animations/yang_jian.json').write_text(json.dumps({'format':1,'sampling_fps':60,'clips':CLIPS},separators=(',',':')),'utf8')
     (ROOT/'modeling/yang_jian-animation-source.json').write_text(json.dumps({'format':1,'axes':'Minecraft runtime, converted from Blockbench','clips':SOURCE},separators=(',',':')),'utf8')
     print('Baked',len(CLIPS),'clips; affected bones:',len(set().union(*(c['bones'] for c in CLIPS.values()))))
     for name,c in SOURCE.items():
