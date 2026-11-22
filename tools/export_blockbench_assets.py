@@ -86,7 +86,7 @@ for texture in model['textures']:
  name=texture['name'].removesuffix('.png')
  path=RES/f'textures/entity/{name}.png';path.parent.mkdir(parents=True,exist_ok=True)
  path.write_bytes(base64.b64decode(texture['source'].split(',',1)[1]))
-for path,obj in [(RES/'mesh/cogwork_dancer.json',mesh),(RES/'animations/cogwork_dancer.json',{'format':1,'sampling_fps':60,'interpolation_source':'Blockbench SplineCurve / linear','clips':clips})]:
+for path,obj in [(RES/'mesh/cogwork_dancer.json',mesh),(RES/'boss_animations/cogwork_dancer.json',{'format':1,'sampling_fps':60,'interpolation_source':'Blockbench SplineCurve / linear','clips':clips})]:
  path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(obj,separators=(',',':')),'utf8')
 manifest={'created_with':'Blockbench MCP','server_version':'1.6.1','source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),'cubes':sum(e['type']=='cube' for e in elements.values()),'meshes':sum(e['type']=='mesh' for e in elements.values()),'bones':len(groups),'rendered_faces':count,'animations':list(clips),'texture_size':[256,256],'sampling_fps':60,'interpolation':'Editable Catmull-Rom, baked at 60 Hz'}
 (ROOT/'modeling/mcp-export-manifest.json').write_text(json.dumps(manifest,indent=2),'utf8')

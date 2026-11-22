@@ -2,9 +2,10 @@
 from pathlib import Path
 import json
 import uuid
+from export_yang_jian_assets import SOURCE
 
 ROOT=Path(__file__).resolve().parents[1]
-model=json.loads((ROOT/'modeling/yang_jian_v3.bbmodel').read_text('utf8'))
+model=json.loads(SOURCE.read_text('utf8'))
 source=json.loads((ROOT/'modeling/yang_jian-animation-source.json').read_text('utf8'))['clips']
 groups={g['name']:g['uuid'] for g in model['groups']}
 def uid(value):return str(uuid.uuid5(uuid.NAMESPACE_URL,'myriad_calamity:yang_jian:p1:'+value))
@@ -33,4 +34,4 @@ model['animations']=animations
 model['name']='Yang Jian - P1 Animated'
 target=ROOT/'modeling/yang_jian_p1.bbmodel'
 target.write_text(json.dumps(model,separators=(',',':'),ensure_ascii=False),'utf8')
-print(f'{target}: {len(animations)} animations, {len(model["elements"])} unchanged cuboids')
+print(f'{target}: {len(animations)} animations, {len(model["elements"])} model elements')

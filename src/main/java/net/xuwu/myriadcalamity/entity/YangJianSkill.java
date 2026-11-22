@@ -153,7 +153,7 @@ public enum YangJianSkill {
      * while a standing player still intersects it with their upper body.
      */
     public static final double DIVINE_SWEEP_HEIGHT=2.0,DIVINE_SWEEP_HALF_BAND=.62;
-    /** The divine sweep stretches the spear along its own axis instead of trailing a bolt. */
+    /** The spear grows along its own axis. Lightning covers the remaining reach beyond its tip. */
     public static final float DIVINE_SWEEP_WEAPON_LENGTH=3F;
     public static float divineSweepWeaponLength(float age) {
         if(!Float.isFinite(age))return 1F;

@@ -1,6 +1,7 @@
 package net.xuwu.myriadcalamity;
 
 import java.util.Map;
+import java.util.Set;
 import net.xuwu.myriadcalamity.client.AnimationPlayback;
 import net.xuwu.myriadcalamity.client.AnimationTrack;
 
@@ -59,6 +60,13 @@ public final class AnimationPlaybackTest {
         check(near(reappeared.position()[0],7)&&near(reappeared.rotation()[1],90),"A long invisible interval discards stale transition poses");
         var reset=body(partner.apply("idle",0,4,pose(1,0,1)));
         check(near(reset.position()[0],1),"Clock reset discards the previous entity timeline");
+        AnimationPlayback bounded=new AnimationPlayback();
+        bounded.apply("raised",0,4,pose(0,100,1),Set.of("body"));
+        bounded.apply("lowered",1,4,pose(0,-100,1),Set.of("body"));
+        var boundedHalf=body(bounded.apply("lowered",3,4,pose(0,-100,1),Set.of("body")));
+        check(near(boundedHalf.rotation()[1],0),"A bounded joint unwinds through neutral rather than past its limit");
+        check(near(body(bounded.apply("lowered",5,4,pose(0,-100,1),Set.of("body"))).rotation()[1],-100),
+            "A bounded joint reaches the authored angle without a 360-degree offset");
         System.out.println("Animation playback: "+checks+" checks passed.");
     }
 }

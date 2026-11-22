@@ -40,7 +40,7 @@ public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
     public CogworkDancerModel(ResourceManager resources) {
         JsonObject mesh=read(resources,"mesh/cogwork_dancer.json");
         for(JsonElement root:mesh.getAsJsonArray("bones"))roots.add(bone(root.getAsJsonObject()));
-        JsonObject animations=read(resources,"animations/cogwork_dancer.json").getAsJsonObject("clips");
+        JsonObject animations=read(resources,"boss_animations/cogwork_dancer.json").getAsJsonObject("clips");
         animations.entrySet().forEach(entry->{
             JsonObject data=entry.getValue().getAsJsonObject();Map<String,Map<String,float[][]>> channels=new HashMap<>();
             data.getAsJsonObject("bones").entrySet().forEach(b->{Map<String,float[][]> tracks=new HashMap<>();

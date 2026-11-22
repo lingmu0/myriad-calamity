@@ -106,7 +106,7 @@ def grip_state(paths, clip, tick, timing_values):
     left = transform(paths['left_hand'], clip, time)
     origin = apply(weapon, [0, 0, 0])
     shaft = direction(weapon)
-    hand = apply(left, [0, 0, 0])
+    hand = apply(left, paths['palm'])
     hand_axis = direction(left)
     offset = [hand[i] - origin[i] for i in range(3)]
     along = sum(offset[i] * shaft[i] for i in range(3))
@@ -123,9 +123,9 @@ def grip_state(paths, clip, tick, timing_values):
 
 def validate():
     mesh = json.loads((ASSETS / 'mesh/yang_jian.json').read_text('utf8'))
-    clip = json.loads((ASSETS / 'animations/yang_jian.json').read_text('utf8'))['clips']['transition']
+    clip = json.loads((ASSETS / 'boss_animations/yang_jian.json').read_text('utf8'))['clips']['transition']
     timing_values = timing()
-    paths = {}
+    paths = {'palm':[v/16 for v in mesh['anchors']['left_palm']]}
     for name in ('weapon', 'left_hand'):
         paths[name] = next(path for bone in mesh['bones'] if (path := bone_path(bone, name)))
     checked = 0

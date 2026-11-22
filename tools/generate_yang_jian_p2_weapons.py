@@ -4,7 +4,6 @@ Meshes are local to the existing hand's weapon pivot, with blades along +Y in
 Blockbench / -Y in the runtime. This generator never changes the approved body.
 """
 from pathlib import Path
-import copy
 import json
 import math
 import uuid
@@ -12,26 +11,23 @@ from export_yang_jian_assets import cube_faces, convert, subtract
 
 ROOT=Path(__file__).resolve().parents[1]
 ASSETS=ROOT/'src/main/resources/assets/myriad_calamity'
-BASE=json.loads((ROOT/'modeling/yang_jian_v3.bbmodel').read_text('utf8'))
-BY_NAME={e['name']:e for e in BASE['elements']}
+# Top-left of each 64-pixel material swatch in the approved 2048-pixel atlas.
 MATERIALS={
-    'dark':'yj3_weapon_grip_inner',
-    'iron':'yj3_weapon_lance_main',
-    'silver':'yj3_weapon_lance_straight_edge_-1',
-    'gold':'yj3_weapon_grip_low_base',
-    'pale_gold':'yj3_weapon_grip_low_upper',
-    'black':'yj3_weapon_lance_groove_-1_-1',
-    'energy':'yj3_weapon_lance_straight_edge_1',
+    'dark':(65,390), 'iron':(65,195), 'silver':(650,390), 'gold':(845,260),
+    'pale_gold':(65,325), 'black':(260,0), 'energy':(845,390),
 }
 PARTS={'axe':[],'sword':[],'whip':[]}
 
 
 def box(weapon,name,center,size,material='iron',rotation=(0,0,0)):
     assert all(s>0 for s in size)
-    source=BY_NAME[MATERIALS[material]]
+    u,v=MATERIALS[material]
+    x,y,z=size
+    faces={side:{'texture':0,'uv':[u+4,v+4,u+4+min(56,max(2,w*2)),v+4+min(56,max(2,h*2))]}
+           for side,(w,h) in zip(('north','south','east','west','up','down'),((x,y),(x,y),(z,y),(z,y),(x,z),(x,z)))}
     e={'type':'cube','name':'p2_'+weapon+'_'+name,'uuid':str(uuid.uuid5(uuid.NAMESPACE_URL,'myriad:p2:'+weapon+':'+name)),
        'from':[center[i]-size[i]/2 for i in range(3)],'to':[center[i]+size[i]/2 for i in range(3)],
-       'origin':list(center),'rotation':list(rotation),'faces':copy.deepcopy(source['faces']),
+       'origin':list(center),'rotation':list(rotation),'faces':faces,
        'box_uv':False,'visibility':True,'p2_material':material}
     PARTS[weapon].append(e)
 

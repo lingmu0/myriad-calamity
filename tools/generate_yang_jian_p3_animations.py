@@ -60,14 +60,19 @@ def append_p3(pose,finish,attack_pose):
             load['chest'][1]=(-1 if i%2 else 1)*12;hit['head'][1]=-load['chest'][1]
             frames += [frame(max(1,t-7),load),frame(t,hit,-.25),frame(t+5,calm)]
         frames.append(frame(total,calm));finish(name,frames,total,metadata={'cast_ticks':times})
+    # Calibrated against the new grip and blade axis. The hips drive the turn
+    # while the extended arm holds the spear level at the server's sweep height.
+    sweep=pose(hips=[0,8,0],waist=[0,10,0],chest=[0,16,0],neck=[0,-12,0],head=[-3,-15,0],
+               right_arm=[40.12,16.79,-12.78],right_forearm=[-45.67,-22.92,-CARRY_ANGLE],
+               right_hand=[-44,-26,-20],left_arm=[34,-18,28],left_forearm=[-30,6,CARRY_ANGLE],
+               left_thigh=[16,0,-8],right_thigh=[-12,0,8],left_shin=[-20,0,0],right_shin=[-8,0,0])
     for name,arc in [('divine_sweep',170),('divine_spin',360)]:
-        # Clockwise, like every other rotating attack: the mirrored model authors it as increasing
-        # yaw, and the chain it drags is drawn in world space the opposite way.
-        ready=attack_pose('horizontal',True);ready['root']=[0,-arc*.5,0]
+        ready=copy.deepcopy(sweep);ready['root']=[0,-arc*.5,0]
         frames=[frame(0,calm),frame(12,ready,-.6),frame(20,ready,-.6)]
         for i in range(1,11):
-            p=attack_pose('horizontal');p['root']=[0,-arc*.5+arc*i/10,0]
+            p=copy.deepcopy(sweep);p['root']=[0,-arc*.5+arc*i/10,0]
             frames.append(frame(20+i,p,-.6))
+        frames.append(frame(31,p,-.6))
         end=copy.deepcopy(calm);end['root']=[0,360 if arc==360 else 0,0]
         frames.append(frame(50,end));finish(name,frames,50,metadata={'hit_ticks':[20],'active_ticks':10})
     load=flying(attack_pose('overhead',True));impact=attack_pose('overhead')
