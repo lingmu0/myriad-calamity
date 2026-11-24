@@ -16,6 +16,8 @@ import net.minecraft.server.level.TicketType;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LightningBolt;
+import net.minecraft.world.entity.animal.horse.SkeletonHorse;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -54,6 +56,13 @@ public final class CloudArena {
     private CloudArena() {}
 
     public static boolean inCloudRealm(Level level) { return LEVEL.equals(level.dimension()); }
+
+    /** Apply native precipitation in this level. Vanilla's saved weather is shared with other dimensions. */
+    public static void applyWeather(Level level, CloudWeather weather) {
+        if (!inCloudRealm(level)) return;
+        level.setRainLevel(weather.rain());
+        level.setThunderLevel(weather.thunder());
+    }
 
     public static void useTalisman(ServerPlayer player) {
         if (player.getCooldowns().isOnCooldown(MyriadCalamity.CLOUD_TALISMAN.get())) return;
@@ -169,6 +178,7 @@ public final class CloudArena {
         if (arena == null) return;
         CloudArenaData data = CloudArenaData.get(server);
         long now = server.overworld().getGameTime();
+        CloudWeather weather = CloudWeather.CLEAR;
         if (now % 20 == 0) rescueDroppedItems(arena);
         ServerPlayer owner = data.owner == null ? null : server.getPlayerList().getPlayer(data.owner);
         if (data.owner != null && (owner == null || !inCloudRealm(owner.level()) || now - data.createdAt > MAX_ENCOUNTER_TICKS)) {
@@ -187,14 +197,18 @@ public final class CloudArena {
                     // P3 is a real death: let its final animation finish while return becomes available.
                     if (boss.phase() < 3) boss.discard();
                     message(owner, boss.phase() >= 3 ? "cloud_p3_complete" : boss.phase() >= 2 ? "cloud_p2_complete" : "cloud_p1_complete");
-                } else if (!(entity instanceof YangJian) || !entity.isAlive()) {
+                } else if (!(entity instanceof YangJian boss) || !boss.isAlive()) {
                     message(owner, "cloud_interrupted");
                     release(arena, data);
-                } else if (now < data.startsAt && now % 20 == 0) {
-                    owner.displayClientMessage(Component.translatable("message.myriad_calamity.cloud_countdown", (data.startsAt - now + 19) / 20), true);
+                } else {
+                    weather = boss.weather();
+                    if (now < data.startsAt && now % 20 == 0) {
+                        owner.displayClientMessage(Component.translatable("message.myriad_calamity.cloud_countdown", (data.startsAt - now + 19) / 20), true);
+                    }
                 }
             }
         }
+        applyWeather(arena, weather);
         if (data.owner != null && now % 100 == 0) refreshTicket(arena);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (now % 20 == 0) deliverReward(player, data);
@@ -419,8 +433,13 @@ public final class CloudArena {
 
     @SubscribeEvent
     public static void cleanOrphans(EntityJoinLevelEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel level) || !inCloudRealm(level)
-                || !(event.getEntity() instanceof YangJian boss) || !boss.isArenaBoss()) return;
+        if (!(event.getLevel() instanceof ServerLevel level) || !inCloudRealm(level)) return;
+        if (event.getEntity() instanceof LightningBolt bolt) bolt.setVisualOnly(true);
+        if (event.getEntity() instanceof SkeletonHorse horse && horse.isTrap()) {
+            event.setCanceled(true);
+            return;
+        }
+        if (!(event.getEntity() instanceof YangJian boss) || !boss.isArenaBoss()) return;
         CloudArenaData data = CloudArenaData.get(level.getServer());
         if (!data.fighting || !boss.getUUID().equals(data.boss)) event.setCanceled(true);
     }

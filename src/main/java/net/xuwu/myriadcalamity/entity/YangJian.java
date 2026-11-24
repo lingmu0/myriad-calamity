@@ -41,6 +41,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.config.MyriadConfig;
+import net.xuwu.myriadcalamity.world.CloudWeather;
 
 /** Server-authoritative three-phase encounter. Only the final phase can be killed normally. */
 public final class YangJian extends Monster {
@@ -69,6 +70,8 @@ public final class YangJian extends Monster {
     private static final EntityDataAccessor<CompoundTag> ARENA=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.COMPOUND_TAG);
     private static final EntityDataAccessor<Integer> BEAM=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CLONE_BEAM=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Byte> LOOK_PITCH=SynchedEntityData.defineId(YangJian.class,EntityDataSerializers.BYTE);
+    private float previousLookPitch,lookPitch;
     private static final int SWEEP_BEAM_SWEEP_TICKS=32;
     private static final int SWEEP_BEAM_HALF_TICKS=SWEEP_BEAM_SWEEP_TICKS/2;
     private static final int SWEEP_BEAM_PASS_COUNT=6;
@@ -115,7 +118,7 @@ public final class YangJian extends Monster {
         this.entityData.define(APPROACH_STARTED,-1L);
         this.entityData.define(GUARD_VALUE,180F);this.entityData.define(GUARD_MAX,180F);this.entityData.define(THROWN,false);this.entityData.define(AXE_TRAIL_CHARGES,0);
         this.entityData.define(COMPLETE,false);this.entityData.define(ARENA_PREPARING,false);this.entityData.define(PLAN,new CompoundTag());this.entityData.define(ARENA,new CompoundTag());
-        this.entityData.define(BEAM,-1);this.entityData.define(CLONE_BEAM,-1);
+        this.entityData.define(BEAM,-1);this.entityData.define(CLONE_BEAM,-1);this.entityData.define(LOOK_PITCH,(byte)0);
     }
     public int action() { return entityData.get(ACTION); }
     public int phase() { return entityData.get(PHASE); }
@@ -152,6 +155,15 @@ public final class YangJian extends Monster {
         return plan.getInt("a")==action() && plan.contains("t") && plan.getFloat("r")>0
             && stepAge(0)>=0 && stepAge(0)<stepWindup() && telegraphShape()>0 && action()!=PHASE_CLEAR && !isTransitioning();
     }
+    public CloudWeather weather() {
+        if (!isAlive() || isArenaPreparing() || isTrialComplete() || action()==PHASE_CLEAR) return CloudWeather.CLEAR;
+        return switch (action()) {
+            case TRANSITION -> CloudWeather.enteringLightRain(actionAge(0));
+            case THIRD_EYE_OPEN -> CloudWeather.enteringThunderstorm(actionAge(0) / YangJianPhaseThree.OPEN_TICKS);
+            default -> CloudWeather.phase(phase());
+        };
+    }
+
     public boolean isTrialComplete() { return entityData.get(COMPLETE); }
     public boolean isArenaPreparing() { return entityData.get(ARENA_PREPARING); }
     public boolean hasSweepClone() { return entityData.get(PLAN).getBoolean("cloneReady"); }
@@ -188,6 +200,18 @@ public final class YangJian extends Monster {
         setHealth(getMaxHealth());entityData.set(GUARD_MAX,MyriadConfig.yangJianGuard());entityData.set(GUARD_VALUE,maxGuard());
     }
 
+    @Override public void tick() {
+        super.tick();
+        if (level().isClientSide) {
+            previousLookPitch=lookPitch;
+            lookPitch=Mth.approach(lookPitch,entityData.get(LOOK_PITCH),5F);
+        }
+    }
+
+    public float targetLookPitch(float partial) {
+        return Mth.lerp(partial,previousLookPitch,lookPitch);
+    }
+
     @Override protected void customServerAiStep() {
         super.customServerAiStep();initialize();
         if(!isAlive())return;
@@ -204,6 +228,7 @@ public final class YangJian extends Monster {
         tickHealthTransitions();
         if(tickCount%10==0)updateBars();
         if(isTransitioning()) {
+            entityData.set(LOOK_PITCH,(byte)0);
             getNavigation().stop();setDeltaMovement(Vec3.ZERO);
             if(action()==TRANSITION) { tickThunderAxeTransition();return; }
             if(transitionRemaining>0 && --transitionRemaining==0) {
@@ -212,6 +237,7 @@ public final class YangJian extends Monster {
             return;
         }
         if(action()==PHASE_CLEAR) {
+            entityData.set(LOOK_PITCH,(byte)0);
             getNavigation().stop();setDeltaMovement(Vec3.ZERO);
             if(clearRemaining>0 && --clearRemaining==0) {
                 entityData.set(COMPLETE,true);healthBar.removeAllPlayers();guardBar.removeAllPlayers();
@@ -221,6 +247,12 @@ public final class YangJian extends Monster {
             return;
         }
         LivingEntity target=action()==IDLE && entityData.get(APPROACH_STARTED)<0?chooseTarget():lockedEntity();
+        float wantedPitch=0;
+        if(target!=null) {
+            Vec3 difference=target.position().subtract(position());
+            wantedPitch=YangJianSkill.targetLookPitch(difference.y,difference.horizontalDistance());
+        }
+        entityData.set(LOOK_PITCH,(byte)Math.round(wantedPitch));
         if(target==null && action()!=GUARD) {
             if(action()!=IDLE || entityData.get(APPROACH_STARTED)>=0) { clearThirdHazards(true);cancelAttack(); }
             getNavigation().stop();setDeltaMovement(new Vec3(0,getDeltaMovement().y,0));return;

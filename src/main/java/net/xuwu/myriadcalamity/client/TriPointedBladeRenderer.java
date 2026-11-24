@@ -15,10 +15,13 @@ import org.joml.Vector3f;
 /** The held three-pointed spear itself, maintaining its flight heading without decorative spinning. */
 public final class TriPointedBladeRenderer extends EntityRenderer<TriPointedBlade> {
     private final YangJianModel model;
+    private final YangJianProjectileTrail trail = new YangJianProjectileTrail();
     public TriPointedBladeRenderer(EntityRendererProvider.Context context) {
         super(context);model=new YangJianModel(context.getResourceManager());shadowRadius=.2F;
     }
     @Override public void render(TriPointedBlade blade,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
+        trail.render(blade, partial, 5.2, .20, YangJianVisuals.GOLD,
+            CombatEffectRenderLayer.buffer(buffers), pose.last().pose());
         pose.pushPose();
         Vec3 motion=blade.getDeltaMovement();
         if(motion.lengthSqr()<1E-7)motion=blade.getLookAngle();

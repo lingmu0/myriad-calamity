@@ -10,6 +10,7 @@ import math
 import copy
 from animation_baker import bake, sample
 from yang_jian_arm_motion import improve_pose, bake_forearm
+from yang_jian_foot_motion import refine_footwork
 from export_yang_jian_assets import SOURCE as MODEL
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,12 +63,13 @@ def attack_pose(kind, loaded=False, follow=False, side=1):
             left_thigh=[27 if loaded else 8,0,-5], right_thigh=[-20 if loaded else -9,0,5],
             left_shin=[-20 if loaded else -5,0,0], right_shin=[22 if loaded else 9,0,0])
     angle = (-1 if loaded else 1)*side
-    return pose(hips=[7,angle*18,angle*2], waist=[4,angle*26,-angle*3], chest=[3,angle*37,-angle*4],
-        neck=[0,-angle*13,0], head=[-3,-angle*18,0],
-        right_arm=[53 if loaded else 77,angle*19,-25 if loaded else 5],
-        right_forearm=[-32 if loaded else -9,angle*12,24 if loaded else -7],
-        right_hand=[-109 if loaded else -142,angle*13,angle*16],
-        left_arm=[23 if loaded else 61,-angle*15,24], left_forearm=[-29,0,-17], left_hand=[0,0,-8],
+    return pose(hips=[7,angle*(20 if follow else 15),angle*2],
+        waist=[4,angle*(14 if follow else 16),-angle*3], chest=[3,angle*(18 if follow else 21),-angle*4],
+        neck=[0,-angle*11,0], head=[-3,-angle*18,0],
+        right_arm=[53 if loaded else 65 if follow else 77,angle*(25 if follow else 19),-25 if loaded else 5],
+        right_forearm=[-32 if loaded else -21 if follow else -9,angle*9,24 if loaded else -7],
+        right_hand=[-109 if loaded else -121 if follow else -135,angle*12,angle*13],
+        left_arm=[23 if loaded else 43 if follow else 54,-angle*15,23], left_forearm=[-29,0,-17], left_hand=[0,0,-8],
         left_thigh=[angle*19,0,-8], right_thigh=[-angle*19,0,8],
         left_shin=[-angle*10,0,0], right_shin=[angle*10,0,0], left_foot=[0,-angle*8,0], right_foot=[0,angle*8,0])
 
@@ -115,6 +117,14 @@ def finish(name, frames, ticks, loop=False, metadata=None):
         seen.add(id(p))
         improve_pose(p, name, tick)
     bones = curves(frames, ticks/20, loop)
+    if name in ('combo','four_combo','six_combo'):
+        # Bounded yaw gives the feet a single turn to follow through the strike.
+        keys = bones['root']['rotation']
+        for key in keys:
+            key['mode'] = 'pchip'
+        bones['root']['rotation'] = [
+            {'time': key[0], 'values': key[1:], 'mode': 'linear'} for key in bake(keys, ticks/20)
+        ]
     if name in ('divine_sweep','divine_spin'):
         for key in bones['root']['rotation']:
             if 20 <= key['time']*20 <= 30:
@@ -148,6 +158,7 @@ def finish(name, frames, ticks, loop=False, metadata=None):
             kept=[key for key in bones[bone]['rotation'] if key['time']<68/20 or key['time']>72/20]
             kept.extend({'time':key[0],'values':key[1:],'mode':'linear'} for key in keys)
             bones[bone]['rotation']=sorted(kept,key=lambda key:key['time'])
+    refine_footwork(name,bones,ticks,loop,metadata or {})
     # Overlapping plates, split cloth and hair follow the preceding body motion.
     secondary = ['left_shoulder','right_shoulder','left_vambrace','right_vambrace',
         'left_skirt','right_skirt','left_skirt_lower','right_skirt_lower',
@@ -214,14 +225,18 @@ def combos(name, windups, gap, recovery, kinds):
         if kind == 'spin':
             # One clockwise turn. The model is rendered mirrored, so the clockwise look is
             # authored here as increasing yaw; the world-space sweeps reach it the other way.
-            loaded['root'][1] = turns+40
-            hit['root'][1] = turns+275
-            follow['root'][1] = turns+360
+            loaded['root'][1] = turns+29
+            hit['root'][1] = turns+122
+            follow['root'][1] = turns+290
+            finish_turn = copy.deepcopy(follow)
+            finish_turn['root'][1] = turns+360
             turns += 360
         crouch = -.9 if kind=='overhead' else -.4
         frames += [(tick,ready,[0,0,0]),(tick+windup*.66,loaded,[0,crouch,0]),
                    (tick+windup-1.5,loaded,[0,crouch,0]),(tick+windup,hit,[0,-.4,-.25]),
                    (tick+windup+2,follow,[0,-.25,-.15])]
+        if kind == 'spin':
+            frames.append((tick+windup+3,finish_turn,[0,-.20,0]))
         tick += windup+3+gap
     end=pose();end['root']=[0,turns,0]
     duration=tick-gap+recovery

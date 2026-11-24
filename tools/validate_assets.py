@@ -39,7 +39,8 @@ for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_tal
 for png in RES.rglob('*.png'):
     dimensions=read_png(png)
     expected = {'yang_jian.png': (2048,2048), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
-    check(dimensions==expected.get(png.name, (256,256) if png.parent.name=='entity' else (32,32)),f'Texture dimensions: {png}')
+    default_dimensions = {'entity': (256,256), 'item': (16,16), 'effect': (1,1)}
+    check(dimensions==expected.get(png.name, default_dimensions.get(png.parent.name,(32,32))),f'Texture dimensions: {png}')
 recipe=jsons[f'data/{NS}/recipes/winding_key.json']
 check(recipe['result']['item']==f'{NS}:winding_key','1.20.1 recipe item id')
 check(set(''.join(recipe['pattern']))-{' '}==recipe['key'].keys(),'Recipe key coverage')
@@ -169,7 +170,7 @@ with zipfile.ZipFile(jars[0]) as jar:
     names=set(jar.namelist())
     for p in RES.rglob('*'):
         if p.is_file():check(p.relative_to(RES).as_posix() in names and jar.read(p.relative_to(RES).as_posix())==p.read_bytes(),f'Current packaged resource {p.name}')
-    for name in ['MyriadCalamity','entity/CogworkDancer','entity/CombatMath','client/ClientEvents','client/CogworkDancerModel','client/CogworkDancerRenderer','item/WindingKeyItem','client/AnimationTrack','client/AnimationPlayback','client/CogworkTelegraph','entity/CogworkBlade','client/CogworkBladeRenderer','block/DanceAltarBlock','world/ModStructures','world/CogworkTheatreStructure','world/CogworkTheatrePiece','world/DanceEncounters','world/TheatreLayout','config/MyriadConfig']:
+    for name in ['MyriadCalamity','entity/CogworkDancer','entity/CombatMath','client/ClientEvents','client/CogworkDancerModel','client/CogworkDancerRenderer','item/WindingKeyItem','client/AnimationTrack','client/AnimationPlayback','client/CogworkTelegraph','client/CombatEffectRenderLayer','client/ShaderPackSupport','entity/CogworkBlade','client/CogworkBladeRenderer','block/DanceAltarBlock','world/ModStructures','world/CogworkTheatreStructure','world/CogworkTheatrePiece','world/DanceEncounters','world/TheatreLayout','config/MyriadConfig']:
         entry=f'net/xuwu/myriadcalamity/{name}.class'
         check(entry in names,f'Packaged class {name}')
         check(struct.unpack('>H',jar.read(entry)[6:8])[0]==61,f'Java 17 class {name}')
@@ -177,7 +178,7 @@ with zipfile.ZipFile(jars[0]) as jar:
                  'entity/DivineFlyingSword','entity/LightningTrail','entity/YangJianEffects',
                  'entity/YangJianHazard','entity/YangJianHazardMath','entity/YangJianPhaseThree','entity/YangJianFootwork','client/YangJianHazardRenderer',
                  'client/DivineFlyingSwordRenderer','client/LightningTrailRenderer','client/YangJianWeapons','client/YangJianCombatEffects','client/YangJianTransitionEffects',
-                 'effect/RoarMarkEffect','world/CloudArena','world/CloudArenaData','item/CloudTalismanItem',
+                 'effect/RoarMarkEffect','world/CloudArena','world/CloudWeather','world/CloudArenaData','item/CloudTalismanItem',
                  'client/YangJianModel','client/YangJianRenderer','client/YangJianTelegraph',
                  'client/CelestialHoundRenderer','client/CelestialHoundModel','client/TriPointedBladeRenderer','client/CloudRealmEffects']:
         entry=f'net/xuwu/myriadcalamity/{name}.class'

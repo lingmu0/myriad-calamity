@@ -10,6 +10,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.xuwu.myriadcalamity.MyriadCalamity;
 import net.xuwu.myriadcalamity.world.CloudArena;
@@ -28,9 +29,11 @@ public final class CloudRealmEffects extends DimensionSpecialEffects {
     public static void fogColor(ViewportEvent.ComputeFogColor event) {
         if (!CloudArena.inCloudRealm(event.getCamera().getEntity().level())
                 || event.getCamera().getFluidInCamera() != FogType.NONE) return;
-        event.setRed(.78F);
-        event.setGreen(.85F);
-        event.setBlue(.91F);
+        var level = event.getCamera().getEntity().level();
+        float rain = level.getRainLevel(1), thunder = level.getThunderLevel(1);
+        event.setRed(.78F - .26F * rain - .06F * thunder);
+        event.setGreen(.85F - .29F * rain - .14F * thunder);
+        event.setBlue(.91F - .29F * rain - .12F * thunder);
     }
 
     @SubscribeEvent
@@ -46,7 +49,9 @@ public final class CloudRealmEffects extends DimensionSpecialEffects {
     public static void wisps(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null || minecraft.isPaused()
+        if (minecraft.isPaused()) return;
+        YangJianStorm.tick(minecraft);
+        if (minecraft.level == null || minecraft.player == null
                 || !CloudArena.inCloudRealm(minecraft.level) || minecraft.level.getGameTime() % 3 != 0) return;
         var random = minecraft.level.random;
         for (int i = 0; i < 3; i++) {
@@ -55,5 +60,17 @@ public final class CloudRealmEffects extends DimensionSpecialEffects {
             minecraft.level.addParticle(ParticleTypes.CLOUD, .5 + Math.cos(angle) * radius,
                 124 + random.nextDouble() * 5, .5 + Math.sin(angle) * radius, .028, .005, .009);
         }
+    }
+
+    @SubscribeEvent
+    public static void storm(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!YangJianStorm.visible(minecraft.level) || event.getCamera().getFluidInCamera() != FogType.NONE) return;
+        var buffers = minecraft.renderBuffers().bufferSource();
+        YangJianStorm.render(minecraft.level, event.getPartialTick(),
+            event.getCamera().getPosition(), minecraft.options.hideLightningFlash().get(),
+            CombatEffectRenderLayer.buffer(buffers), event.getPoseStack().last().pose());
+        CombatEffectRenderLayer.flush(buffers);
     }
 }

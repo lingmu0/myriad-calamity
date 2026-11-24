@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import net.xuwu.myriadcalamity.config.MyriadConfig;
 import net.xuwu.myriadcalamity.entity.YangJian;
 import net.xuwu.myriadcalamity.entity.YangJianHazard;
 import net.xuwu.myriadcalamity.entity.YangJianSkill;
@@ -16,24 +17,20 @@ import org.joml.Quaternionf;
 /** Small immediate weapon effects; persistent damaging trails have their own server entities. */
 final class YangJianCombatEffects {
     static void render(YangJian boss,YangJianModel model,float partial,PoseStack pose,MultiBufferSource buffers) {
-        boolean stroke=switch(boss.action()) {
-            case YangJian.COMBO,YangJian.FOUR_COMBO,YangJian.SIX_COMBO,YangJian.COUNTER,
-                 YangJian.THRUST,YangJian.LIGHTNING_THRUST,YangJian.DIVINE_SWEEP -> true;
-            default -> false;
-        };
-        if(!stroke && boss.phase()<2 && boss.action()!=YangJian.TRANSITION)return;
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());
+        if (ShaderPackSupport.pass() == ShaderPackSupport.Pass.SHADOW) return;
+        int strokeDuration = strokeDuration(boss);
+        if(strokeDuration==0 && boss.phase()<2 && boss.action()!=YangJian.TRANSITION)return;
+        VertexConsumer v=CombatEffectRenderLayer.buffer(buffers);
         Matrix4f m=pose.last().pose();
         float age=boss.actionAge(partial);
         eyeCharge(boss,model,partial,v,m);
         if(boss.phase()==3 || boss.action()==YangJian.THIRD_EYE_OPEN)divine(boss,model,partial,age,v,m);
         if(boss.action()==YangJian.SWEEP_BEAM && boss.hasSweepClone()) {
             sweepCloneVeil(boss,partial,pose,v);
-            // Switching from debug quads to the translucent model ends the
-            // current BufferBuilder. Reacquire debug quads before any later
-            // effect writes to it.
+            // Switching to the clone mesh can end the current quad batch.
+            // Reacquire the effect buffer before submitting more geometry.
             sweepCloneModel(boss,model,partial,pose,buffers);
-            v=buffers.getBuffer(RenderType.debugQuads());
+            v=CombatEffectRenderLayer.buffer(buffers);
         }
         if(boss.phase()==2 && boss.axeTrailCharges()>0)axeAftershock(boss,partial,v,m);
         if(boss.weapon()==3 && !boss.weaponThrown())whip(boss,model,partial,v,m);
@@ -47,68 +44,71 @@ final class YangJianCombatEffects {
             }
         }
         if(boss.action()==YangJian.TRANSITION)YangJianTransitionEffects.weapon(boss,model,partial,v,m);
-        YangJianSkill skill=YangJianSkill.forAction(boss.action());
-        if(skill==null)return;
         float active=boss.stepAge(partial)-boss.stepWindup();
-        if(stroke && boss.weapon()==0 && !boss.weaponThrown() && active>=0 && active<skill.stepActive(boss.comboStep()))
-            spearStroke(boss,model,partial,age,active,v,m);
-        if(boss.action()==YangJian.DRAW_SLASH && active>=0 && active<4) {
-            double heading=Math.atan2(boss.dashEnd().z-boss.dashStart().z,boss.dashEnd().x-boss.dashStart().x);
-            double radius=boss.telegraphRadius();
-            int color=((int)((1-active/4)*205)<<24)|0xDEF8FF;
-            for(int i=0;i<28;i++) {
-                double a=heading-Math.toRadians(80)+Math.toRadians(160)*i/28;
-                double b=heading-Math.toRadians(80)+Math.toRadians(160)*(i+1)/28;
-                beam(v,m,new Vec3(Math.cos(a)*radius,1.05,Math.sin(a)*radius),
-                    new Vec3(Math.cos(b)*radius,1.05,Math.sin(b)*radius),.045,color);
-            }
+        if(strokeDuration>0 && boss.weapon()!=3 && !boss.weaponThrown() && !boss.isInvisible()
+                && active>=0 && active<strokeDuration+4) {
+            weaponStroke(boss,model,partial,age,active,strokeDuration,v,m);
         }
         if((boss.action()==YangJian.AXE_SLAM || boss.action()==YangJian.AXE_COMBO && boss.comboStep()==3)
                 && active>=0 && active<7) {
             Vec3 position=new Vec3(Mth.lerp(partial,boss.xOld,boss.getX()),Mth.lerp(partial,boss.yOld,boss.getY()),Mth.lerp(partial,boss.zOld,boss.getZ()));
             Vec3 center=boss.attackPoint().subtract(position);
-            float fade=1-active/7;
-            ring(v,m,center,Math.max(.4,boss.telegraphRadius()*active/7),.075,((int)(fade*220)<<24)|0xCDF6FF);
-            for(int i=0;i<8;i++) {
-                double a=i*Math.PI/4;
-                Vec3 end=center.add(Math.cos(a)*boss.telegraphRadius(),.12,Math.sin(a)*boss.telegraphRadius());
-                Vec3 mid=center.lerp(end,.55).add(0,.4*fade,0);
-                beam(v,m,center.add(0,.2,0),mid,.025,((int)(fade*210)<<24)|0xA8E8FF);
-                beam(v,m,mid,end,.018,((int)(fade*170)<<24)|0xD6F8FF);
+            double radius=boss.telegraphRadius();
+            YangJianLightningEffects.strike(v,m,center,6.5,Math.min(2.3,radius*.39),.21,active,0,
+                boss.getId(),YangJianVisuals.BLUE,1);
+            if(MyriadConfig.showYangJianAttackIndicators()) {
+                ring(v,m,center,radius,.068,((int)((1-active/7)*146)<<24)|0xA8E8FF);
             }
         }
     }
 
-    private static void spearStroke(YangJian boss,YangJianModel model,float partial,float age,float active,
-                                    VertexConsumer v,Matrix4f m) {
+    private static int strokeDuration(YangJian boss) {
+        YangJianSkill skill = YangJianSkill.forAction(boss.action());
+        if (skill == null) return 0;
+        return switch (skill) {
+            case COMBO, FOUR_COMBO, SIX_COMBO, COORDINATED, COUNTER, THRUST, LIGHTNING_THRUST,
+                AXE_SLAM, AXE_COMBO, DRAW_SLASH, DELAYED_COMBO, DIVINE_SWEEP -> skill.stepActive(boss.comboStep());
+            case AERIAL_COMBO, DIVINE_JUDGEMENT -> boss.comboStep()==2 && boss.telegraphShape()==2 ? 6 : 0;
+            case INVISIBLE_DASH -> boss.comboStep()==1 ? skill.stepActive(1) : 0;
+            default -> 0;
+        };
+    }
+
+    private static void weaponStroke(YangJian boss,YangJianModel model,float partial,float age,float active,
+                                     int duration,VertexConsumer v,Matrix4f m) {
         boolean divine=boss.action()==YangJian.DIVINE_SWEEP;
         float yaw=Mth.rotLerp(partial,boss.yBodyRotO,boss.yBodyRot);
-        float span=Math.min(active+1.2F,2.25F);
-        YangJianModel.BladeEdge edge=model.bladeEdge(yaw,0,divine?YangJianSkill.divineSweepWeaponLength(age):1);
-        double tipRadius=edge.tip().horizontalDistance();
-        if(divine && tipRadius>.1 && tipRadius<boss.telegraphRadius()) {
-            double reach=boss.telegraphRadius()/tipRadius;
-            Vec3 end=new Vec3(edge.tip().x*reach,YangJianSkill.DIVINE_SWEEP_HEIGHT,edge.tip().z*reach);
-            Vec3 axis=end.subtract(edge.tip()).normalize();
-            Vec3 side=axis.cross(Math.abs(axis.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize();
-            Vec3 up=axis.cross(side),previous=edge.tip();
-            for(int i=1;i<=7;i++) {
-                double t=i/7D,amp=.13*Math.sin(Math.PI*t),phase=age*1.55+i*2.41;
-                Vec3 point=edge.tip().lerp(end,t).add(side.scale(amp*Math.cos(phase))).add(up.scale(amp*Math.sin(phase)));
-                beam(v,m,previous,point,.042,0xAAA81338);
-                beam(v,m,previous,point,.015,0xFFFDA6A8);
-                previous=point;
+        YangJianVisuals.Palette palette = divine ? YangJianVisuals.RED
+            : boss.weapon()==1 || boss.action()==YangJian.LIGHTNING_THRUST ? YangJianVisuals.BLUE
+            : boss.weapon()==2 ? YangJianVisuals.SILVER : YangJianVisuals.GOLD;
+        if (divine && active<duration) {
+            Vec3 tip = model.bladeEdge(yaw,0,YangJianSkill.divineSweepWeaponLength(age)).tip();
+            double tipRadius = tip.horizontalDistance();
+            if (tipRadius>.1 && tipRadius<boss.telegraphRadius()) {
+                double reach = boss.telegraphRadius()/tipRadius;
+                Vec3 end = new Vec3(tip.x*reach,YangJianSkill.DIVINE_SWEEP_HEIGHT,tip.z*reach);
+                YangJianVisuals.bolt(v,m,tip,end,.103,.34,age,boss.getId(),palette,.95,true);
+                YangJianVisuals.bolt(v,m,tip,end,.047,.56,age+4,boss.getId()+51,palette,.65,false);
             }
         }
-        // Sample the current swing only. Repeated renders and teleports cannot join two attacks.
-        for(int i=1;i<=4;i++) {
-            float back=span*i/4;
-            YangJianModel.BladeEdge old=model.bladeEdge(yaw,back,divine?YangJianSkill.divineSweepWeaponLength(age-back):1);
-            int alpha=90-i*16,color=(alpha<<24)|(divine?0xF24352:0xD5C29B);
-            point(v,m,edge.heel(),color);point(v,m,edge.tip(),color);
-            point(v,m,old.tip(),color);point(v,m,old.heel(),color);
-            beam(v,m,edge.tip(),old.tip(),divine?.020:.013,((alpha+28)<<24)|(divine?0xFFA4AD:0xFFF4D9));
-            edge=old;
+
+        // Sample only this stroke, including its last frames while the glow fades in recovery.
+        float newest = Math.max(0,active-duration+.01F), oldest = Math.min(active+.7F,4.7F);
+        if (newest>=oldest) return;
+        YangJianModel.BladeEdge previous = null;
+        double previousOpacity = 0;
+        for (int i=0;i<=12;i++) {
+            float back = Mth.lerp(i/12F,oldest,newest);
+            float sampleYaw = Mth.rotLerp(Math.max(0,partial-back),boss.yBodyRotO,boss.yBodyRot);
+            YangJianModel.BladeEdge edge = model.bladeEdge(sampleYaw,back,
+                divine ? YangJianSkill.divineSweepWeaponLength(age-back) : 1);
+            double opacity = (1-back/4.7) * (i/12.0);
+            if (previous!=null) {
+                YangJianVisuals.bladeArc(v,m,previous.heel(),previous.tip(),edge.heel(),edge.tip(),
+                    palette,previousOpacity,opacity);
+            }
+            previous = edge;
+            previousOpacity = opacity;
         }
     }
 
@@ -134,17 +134,20 @@ final class YangJianCombatEffects {
         float bodyYaw=Mth.rotLerp(partial,boss.yBodyRotO,boss.yBodyRot);
         Vec3 eye=model.eyePoint(bodyYaw);
         Vec3 direction=hazard.visualDirection(partial).normalize();
-        Vec3 side=direction.cross(Math.abs(direction.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize();
+        if (direction.lengthSqr()<1E-8) return;
+        Vec3 side=YangJianVisuals.side(direction);
         Vec3 up=direction.cross(side).normalize();
-        double pulse=.8+.2*Math.sin((boss.tickCount+partial)*1.2);
-        double radius=.035+charge*.085;
+        double clock=boss.tickCount+partial;
+        double pulse=.85+.15*Math.sin(clock*1.2);
+        double radius=.065+charge*.15;
         Vec3 center=eye.add(direction.scale(.025));
-        int alpha=(int)((100+150*charge)*pulse);
-        for(Vec3 axis:new Vec3[]{side,up}) {
-            beam(v,m,center.subtract(axis.scale(radius)),center.add(axis.scale(radius)),.035+charge*.025,
-                ((int)(alpha*.35)<<24)|0xFFCF38);
-            beam(v,m,center.subtract(axis.scale(radius*.55)),center.add(axis.scale(radius*.55)),.012,
-                (alpha<<24)|0xFFF5B6);
+        YangJianVisuals.flare(v,m,center,side,up,radius,(.45+charge*.55)*pulse,YangJianVisuals.GOLD);
+        for (int i=0;i<4;i++) {
+            double angle=clock*.16+i*Math.PI/2;
+            Vec3 axis=side.scale(Math.cos(angle)).add(up.scale(Math.sin(angle)));
+            YangJianVisuals.bolt(v,m,center.add(axis.scale(radius*(1.4-.56*charge))),
+                center.add(axis.scale(radius*.43)),.012,.025,clock,boss.getId()+i*33,
+                YangJianVisuals.GOLD,charge*.8,false);
         }
     }
 
@@ -235,7 +238,10 @@ final class YangJianCombatEffects {
 
     private static void chainLink(VertexConsumer v,Matrix4f m,Vec3 from,Vec3 to,int index,boolean charged) {
         beam(v,m,from,to,.052,index%2==0?0xFFB8A37A:0xFF586570);
-        if(charged)beam(v,m,from,to,.023,0xEEE1FAFF);
+        if(charged) {
+            beam(v,m,from,to,.09,0x344E91FF);
+            beam(v,m,from,to,.023,0xEEE1FAFF);
+        }
     }
     private static void ring(VertexConsumer v,Matrix4f m,Vec3 center,double radius,double width,int color) {
         for(int i=0;i<64;i++) {
