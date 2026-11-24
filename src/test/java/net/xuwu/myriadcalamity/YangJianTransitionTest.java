@@ -1,6 +1,8 @@
 package net.xuwu.myriadcalamity;
 
+import net.xuwu.myriadcalamity.entity.YangJianPhaseThree;
 import net.xuwu.myriadcalamity.entity.YangJianTransition;
+import net.xuwu.myriadcalamity.world.CloudWeather;
 
 /** Platform impact and expanding shockwave dodge checks without launching Minecraft. */
 public final class YangJianTransitionTest {
@@ -21,7 +23,37 @@ public final class YangJianTransitionTest {
         groundImpact();
         expandingWave();
         ordinaryJumpDodgeWindows();
+        weatherTransitions();
         System.out.println("Yang Jian P1 -> P2: "+checks+" transition/jump checks passed");
+    }
+
+    private static void weatherTransitions() {
+        check(CloudWeather.enteringLightRain(0).equals(CloudWeather.CLEAR),
+            "The axe transition opens on the same clear frame");
+        var firstRain = CloudWeather.enteringLightRain(1);
+        check(firstRain.rain()>0 && firstRain.coverage()>0 && firstRain.rain()<.01,
+            "Clouds and rain begin building as soon as the axe transition starts");
+        var halfRain = CloudWeather.enteringLightRain(CloudWeather.LIGHT_RAIN_TICKS/2F);
+        check(halfRain.coverage()>.5 && near(halfRain.rain(),.215) && halfRain.thunder()==0,
+            "Clouds lead the rainfall and the second phase stays a light rain");
+        check(CloudWeather.enteringLightRain(YangJianTransition.DURATION).equals(CloudWeather.phase(2)),
+            "The axe finishes into the same settled light rain");
+
+        check(CloudWeather.enteringThunderstorm(0).equals(CloudWeather.phase(2)),
+            "Opening the third eye starts with existing P2 weather");
+        float previousRain=CloudWeather.phase(2).rain(), previousRed=0;
+        boolean gradual=true;
+        for(int tick=1;tick<=YangJianPhaseThree.OPEN_TICKS;tick++) {
+            var sample = CloudWeather.enteringThunderstorm((float)tick/YangJianPhaseThree.OPEN_TICKS);
+            gradual &= sample.rain()>previousRain && sample.rain()-previousRain<.02F
+                && sample.red()>previousRed && sample.red()-previousRed<.03F
+                && sample.coverage()==1 && sample.thunder()==sample.red();
+            previousRain=sample.rain();
+            previousRed=sample.red();
+        }
+        check(gradual,"Rain and the transition to red lightning advance in bounded steps through the animation");
+        check(CloudWeather.enteringThunderstorm(1).equals(CloudWeather.phase(3)),
+            "The opening beam inherits the finished storm without resetting the weather");
     }
 
     private static void flightAndTelegraphTiming() {

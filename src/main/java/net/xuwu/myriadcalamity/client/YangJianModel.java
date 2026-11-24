@@ -214,14 +214,15 @@ public final class YangJianModel extends EntityModel<YangJian> {
             }
             // In attacks the animation supplies counter-rotation; idle adds restrained target tracking.
             if(b.name.equals("head") && action==YangJian.IDLE) {
-                float yawLimit=boss.phase()==3?55:boss.isApproaching()?12:25,pitchLimit=boss.phase()==3?45:boss.isApproaching()?8:14;
+                float yawLimit=boss.phase()==3?55:boss.isApproaching()?12:25;
                 rotation[1]+=Mth.clamp(headYaw,-yawLimit,yawLimit);
-                rotation[0]+=Mth.clamp(headPitch,-pitchLimit,pitchLimit);
             }
             sampled.put(b.name,new AnimationPlayback.Pose(AnimationTrack.sample(channels.get("position"),time,0),
                 rotation,AnimationTrack.sample(channels.get("scale"),time,1)));
         }
-        float blend=boss.phase()==3?1:name.endsWith("windup")?2:name.contains("idle")?4:1;
+        float blend=name.startsWith("step_approach")?0
+            :name.equals("thrust") || name.equals("counter")?1
+            :name.contains("idle")?4:boss.phase()==3?2:2.75F;
         // No blend is applied at each hit: all segments of a combination are one uninterrupted clip.
         Map<String,AnimationPlayback.Pose> result=playback.computeIfAbsent(boss,ignored->new AnimationPlayback())
             .apply(action+":"+name,age,blend,sampled,BOUNDED_ARM_JOINTS);
@@ -243,12 +244,14 @@ public final class YangJianModel extends EntityModel<YangJian> {
             beam.setVisualOrigin(new Vec3(Mth.lerp(partial,boss.xOld,boss.getX()),Mth.lerp(partial,boss.yOld,boss.getY()),
                 Mth.lerp(partial,boss.zOld,boss.getZ())).add(eyePoint(bodyYaw)));
             eyeGlow=beam.warning(partial)?1+2*Mth.clamp(beam.age(partial)/Math.max(1,beam.windup()),0,1):2;
-        } else if(boss.phase()==3 && action!=YangJian.DIVINE_SWEEP && !boss.isTransitioning()) {
-            // Track through aerial casts and recovery instead of inheriting a
-            // frozen head pose from a long composite animation.
-            float lookYaw=Mth.rotLerp(partial,boss.yHeadRotO,boss.yHeadRot)*Mth.DEG_TO_RAD;
-            float pitch=Mth.lerp(partial,boss.xRotO,boss.getXRot())*Mth.DEG_TO_RAD;
-            aimHead(bodyYaw,new Vec3(-Math.sin(lookYaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(lookYaw)*Math.cos(pitch)));
+        } else if(boss.deathTime==0 && action!=YangJian.PHASE_CLEAR && !boss.isTransitioning()) {
+            float pitch=boss.targetLookPitch(partial);
+            if(boss.phase()==3 && action!=YangJian.DIVINE_SWEEP) {
+                float yaw=Mth.rotLerp(partial,boss.yHeadRotO,boss.yHeadRot);
+                aimHead(bodyYaw,Vec3.directionFromRotation(pitch,yaw));
+            } else if(Math.abs(pitch)>.01F) {
+                tiltAnimatedHead(bodyYaw,pitch);
+            }
         }
         selectedWeapon=Mth.clamp(boss.weapon(),0,3);
         // Every P3 laser charges the third eye for its whole windup, including the frames
@@ -294,12 +297,32 @@ public final class YangJianModel extends EntityModel<YangJian> {
         return weaponPoint(transform,bodyYaw,thirdEye[0]/16F,thirdEye[1]/16F,thirdEye[2]/16F,1);
     }
 
-    private void aimHead(float bodyYaw,Vec3 direction) {
-        if(headPath.isEmpty())return;
+    private Matrix4f headParent(float bodyYaw) {
         Matrix4f parent=new Matrix4f().rotateY((180-bodyYaw)*Mth.DEG_TO_RAD)
             .scale(-YangJianRenderer.MODEL_SCALE,-YangJianRenderer.MODEL_SCALE,YangJianRenderer.MODEL_SCALE);
         for(int i=0;i<headPath.size()-1;i++)appendBone(parent,headPath.get(i));
-        Bone head=headPath.getLast();
+        return parent;
+    }
+
+    private void tiltAnimatedHead(float bodyYaw,float pitch) {
+        if(headPath.isEmpty())return;
+        Matrix4f parent=headParent(bodyYaw);
+        Matrix4f animated=new Matrix4f(parent);
+        appendBone(animated,headPath.get(headPath.size()-1));
+        Vector3f forward=animated.transformDirection(new Vector3f(0,0,-1));
+        float yaw=(float)Math.toDegrees(Math.atan2(-forward.x,forward.z));
+        float animatedPitch=(float)-Math.toDegrees(Math.atan2(forward.y,Math.hypot(forward.x,forward.z)));
+        float blend=Math.min(1,Math.abs(pitch)/8F);
+        float limit=YangJianSkill.MAX_LOOK_PITCH;
+        aimHead(parent,Vec3.directionFromRotation(Mth.clamp(Mth.lerp(blend,animatedPitch,pitch),-limit,limit),yaw));
+    }
+
+    private void aimHead(float bodyYaw,Vec3 direction) {
+        if(!headPath.isEmpty())aimHead(headParent(bodyYaw),direction);
+    }
+
+    private void aimHead(Matrix4f parent,Vec3 direction) {
+        Bone head=headPath.get(headPath.size()-1);
         float[] angles=YangJianBeamAim.rotation(parent,direction.x,direction.y,direction.z);
         head.rotation=new float[]{angles[0]-head.baseRotation[0],angles[1]-head.baseRotation[1],angles[2]-head.baseRotation[2]};
     }
@@ -352,6 +375,14 @@ public final class YangJianModel extends EntityModel<YangJian> {
     BladeEdge bladeEdge(float bodyYaw,float ticksBack,float stretch) {
         Matrix4f transform=ticksBack==0?heldWeaponTransform:
             sampleWeapon(currentClip,Math.max(0,currentClipTime-ticksBack/20F));
+        if (selectedWeapon==1) {
+            return new BladeEdge(weaponPoint(transform,bodyYaw,0,-30F/16,0,weaponGrowth),
+                weaponPoint(transform,bodyYaw,16F/16,-38F/16,0,weaponGrowth));
+        }
+        if (selectedWeapon==2) {
+            return new BladeEdge(weaponPoint(transform,bodyYaw,0,-16F/16,0,weaponGrowth),
+                weaponPoint(transform,bodyYaw,0,-39.6F/16,0,weaponGrowth));
+        }
         float x=spearTip[0]/16F,y=spearTip[1]*stretch/16F,z=spearTip[2]/16F;
         return new BladeEdge(weaponPoint(transform,bodyYaw,x*.74F,y*.74F,z*.74F,1),
             weaponPoint(transform,bodyYaw,x,y,z,1));

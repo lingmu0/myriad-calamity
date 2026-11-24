@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -47,7 +46,7 @@ public final class CogworkTelegraph {
                 render(dancer,partial,pose,buffers,camera);
             }
         }
-        buffers.endBatch(RenderType.debugQuads());
+        CombatEffectRenderLayer.flush(buffers);
         pose.popPose();
     }
 
@@ -55,7 +54,7 @@ public final class CogworkTelegraph {
         Vec3 center=dancer.arenaPosition();
         pose.pushPose();
         pose.translate(center.x-camera.x,center.y-camera.y,center.z-camera.z);
-        VertexConsumer vertices=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer vertices=CombatEffectRenderLayer.buffer(buffers);
         Matrix4f matrix=pose.last().pose();
         int steps=128;
         double radius=CombatMath.FIGHT_BOUNDARY_RADIUS, inner=radius-0.11, outer=radius+0.11;
@@ -88,7 +87,7 @@ public final class CogworkTelegraph {
         pose.pushPose();
         // Subtract in double precision before the GPU conversion, including far from world origin.
         pose.translate(anchor.x-camera.x,anchor.y-camera.y,anchor.z-camera.z);
-        VertexConsumer vertices=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer vertices=CombatEffectRenderLayer.buffer(buffers);
         Matrix4f matrix=pose.last().pose();
         if(action==CogworkDancer.BARRAGE) {
             var lanes=dancer.telegraphLanes();
@@ -131,7 +130,7 @@ public final class CogworkTelegraph {
         Vec3 start=dancer.queuedStart(),end=dancer.queuedEnd();
         pose.pushPose();
         pose.translate(end.x-camera.x,end.y-camera.y,end.z-camera.z);
-        VertexConsumer vertices=buffers.getBuffer(RenderType.debugQuads());
+        VertexConsumer vertices=CombatEffectRenderLayer.buffer(buffers);
         Matrix4f matrix=pose.last().pose();
         if(action==CogworkDancer.DASH) {
             lane(vertices,matrix,start.subtract(end),Vec3.ZERO,1.35,Mth.clamp(age/windup,0,1),age);

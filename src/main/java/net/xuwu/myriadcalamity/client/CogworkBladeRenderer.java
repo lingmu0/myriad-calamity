@@ -3,7 +3,6 @@ package net.xuwu.myriadcalamity.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
@@ -25,7 +24,7 @@ public final class CogworkBladeRenderer extends EntityRenderer<CogworkBlade> {
         Vec3 velocity=blade.getDeltaMovement();
         if(velocity.lengthSqr()>1E-7)pose.mulPose(new Quaternionf().rotationTo(new Vector3f(0,0,1),
             new Vector3f((float)velocity.x,(float)velocity.y,(float)velocity.z).normalize()));
-        VertexConsumer v=buffers.getBuffer(RenderType.debugQuads());Matrix4f m=pose.last().pose();
+        VertexConsumer v=CombatEffectRenderLayer.buffer(buffers);Matrix4f m=pose.last().pose();
         int face=blade.silver()?0xEEA7DCE8:0xEEEFA83E,side=blade.silver()?0xEE68A4BD:0xEEAC6A24;
         for(int i=0;i<4;i++) {
             double[] a=OUTER[i],b=OUTER[i+1],c=INNER[i+1],d=INNER[i];
