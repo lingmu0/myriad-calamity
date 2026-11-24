@@ -44,13 +44,12 @@ public final class YangJianTelegraph {
 
     private static void render(YangJian boss,float partial,PoseStack pose,CombatGeometry buffers,Vec3 camera) {
         if(boss.action()==YangJian.TRANSITION) {
-            // The arena-wide slam is the one warning that survives with the indicators off:
-            // it cannot be read from the boss's own motion while he is airborne.
+            // The traveling shock waves are part of the attack. Their range preview obeys the config.
             YangJianTransitionEffects.ground(boss,partial,pose,buffers,camera);
             return;
         }
-        // Every other ground route/shape is opt-in through the server config.
         if(!MyriadConfig.showYangJianAttackIndicators())return;
+        YangJianVisuals.Palette lightning=lightningPalette(boss);
         // The PLAN tag carries action, stage, timestamps and every point in one synced update.
         // Testing the timestamp again with partial ticks removes the warning exactly at release.
         if(!boss.warningVisible())return;
@@ -68,13 +67,13 @@ public final class YangJianTelegraph {
         // Shape and angle are part of the same server plan as the hitbox; P1 and
         // P2 share this path, including the re-locked warning after a short vanish.
         switch(boss.telegraphShape()) {
-            case 3 -> lane(v,matrix,start.subtract(origin),end.subtract(origin),radius,charge,age);
-            case 2 -> sector(v,matrix,Vec3.ZERO,radius,0,Math.PI*2,charge,age);
+            case 3 -> lane(v,matrix,start.subtract(origin),end.subtract(origin),radius,charge,age,lightning);
+            case 2 -> sector(v,matrix,Vec3.ZERO,radius,0,Math.PI*2,charge,age,lightning);
             case 1 -> {
                 double angle=boss.telegraphAngle();
                 if(Double.isFinite(angle) && angle>0 && angle<=360) {
                     double heading=Math.atan2(end.z-start.z,end.x-start.x);
-                    sector(v,matrix,start.subtract(origin),radius,heading,Math.toRadians(angle),charge,age);
+                    sector(v,matrix,start.subtract(origin),radius,heading,Math.toRadians(angle),charge,age,lightning);
                 }
             }
             default -> { }
@@ -82,10 +81,24 @@ public final class YangJianTelegraph {
         pose.popPose();
     }
 
+    private static YangJianVisuals.Palette lightningPalette(YangJian boss) {
+        return switch(boss.action()) {
+            case YangJian.AXE_SLAM,YangJian.AXE_COMBO,YangJian.WHIP_SWEEP,YangJian.WHIP_SPIN,
+                YangJian.LIGHTNING_THRUST -> YangJianVisuals.BLUE;
+            case YangJian.DIVINE_SWEEP -> YangJianVisuals.RED;
+            default -> null;
+        };
+    }
+
     private static boolean finite(Vec3 v) {return Double.isFinite(v.x) && Double.isFinite(v.y) && Double.isFinite(v.z);}
 
-    private static void sector(VertexConsumer v,Matrix4f m,Vec3 center,double radius,double heading,double arc,float charge,float age) {
+    private static void sector(VertexConsumer v,Matrix4f m,Vec3 center,double radius,double heading,double arc,float charge,float age,
+                               YangJianVisuals.Palette lightning) {
         boolean circle=arc>=Math.PI*2-.001;
+        if(circle && lightning!=null) {
+            YangJianVisuals.warningRing(v,m,center,radius,charge,lightning);
+            return;
+        }
         int segments=circle?96:48,offset=circle?0:1;
         double[] x=new double[segments+1+offset],z=new double[x.length];
         if(!circle) {x[0]=center.x;z[0]=center.z;}
@@ -93,10 +106,11 @@ public final class YangJianTelegraph {
             double a=heading-arc*.5+i*arc/segments;
             x[i+offset]=center.x+Math.cos(a)*radius;z[i+offset]=center.z+Math.sin(a)*radius;
         }
-        polygon(v,m,x,z,center.y+HEIGHT,charge,age);
+        polygon(v,m,x,z,center.y+HEIGHT,center,charge,age,lightning);
     }
 
-    private static void lane(VertexConsumer v,Matrix4f m,Vec3 start,Vec3 end,double radius,float charge,float age) {
+    private static void lane(VertexConsumer v,Matrix4f m,Vec3 start,Vec3 end,double radius,float charge,float age,
+                             YangJianVisuals.Palette lightning) {
         double angle=Math.atan2(end.z-start.z,end.x-start.x);
         int steps=16;double[] x=new double[2*(steps+1)],z=new double[x.length];
         for(int i=0;i<=steps;i++) {
@@ -105,23 +119,38 @@ public final class YangJianTelegraph {
             a=angle+Math.PI/2+i*Math.PI/steps;
             x[steps+1+i]=start.x+Math.cos(a)*radius;z[steps+1+i]=start.z+Math.sin(a)*radius;
         }
-        polygon(v,m,x,z,Math.min(start.y,end.y)+HEIGHT,charge,age);
+        polygon(v,m,x,z,Math.min(start.y,end.y)+HEIGHT,start.lerp(end,.5),charge,age,lightning);
     }
 
-    private static void polygon(VertexConsumer v,Matrix4f m,double[] x,double[] z,double y,float charge,float age) {
-        int fill=color(.14F+charge*.16F,225,67,24);
-        int edge=color(.85F+.1F*Mth.sin(age*.35F),255,154+(int)(charge*52),74);
+    private static void polygon(VertexConsumer v,Matrix4f m,double[] x,double[] z,double y,Vec3 center,float charge,float age,
+                                YangJianVisuals.Palette lightning) {
+        int fill=lightning==null ? color(.14F+charge*.16F,225,67,24)
+            : YangJianVisuals.tint(lightning.glow(),.09+charge*.13);
+        int edge=lightning==null ? color(.85F+.1F*Mth.sin(age*.35F),255,154+(int)(charge*52),74)
+            : YangJianVisuals.tint(lightning.body(),.55);
         for(int i=1;i<x.length-1;i++) {
             vertex(v,m,x[0],y,z[0],fill);vertex(v,m,x[i],y,z[i],fill);
             vertex(v,m,x[i+1],y,z[i+1],fill);vertex(v,m,x[i+1],y,z[i+1],fill);
         }
+        outline(v,m,x,z,y+.007,center,1,EDGE,edge);
+        if(lightning!=null) {
+            double scale=1-charge;
+            outline(v,m,x,z,y+.017,center,scale,.11,YangJianVisuals.tint(lightning.glow(),.61));
+            outline(v,m,x,z,y+.021,center,scale,.038,YangJianVisuals.tint(lightning.core(),.89));
+        }
+    }
+
+    private static void outline(VertexConsumer v,Matrix4f m,double[] x,double[] z,double y,
+                                Vec3 center,double scale,double width,int color) {
         for(int i=0;i<x.length;i++) {
             int next=(i+1)%x.length;
-            double dx=x[next]-x[i],dz=z[next]-z[i],length=Math.hypot(dx,dz);
+            double ax=Mth.lerp(scale,center.x,x[i]),az=Mth.lerp(scale,center.z,z[i]);
+            double bx=Mth.lerp(scale,center.x,x[next]),bz=Mth.lerp(scale,center.z,z[next]);
+            double dx=bx-ax,dz=bz-az,length=Math.hypot(dx,dz);
             if(length<1E-6)continue;
-            double nx=-dz/length*EDGE,nz=dx/length*EDGE;
-            vertex(v,m,x[i]+nx,y+.007,z[i]+nz,edge);vertex(v,m,x[next]+nx,y+.007,z[next]+nz,edge);
-            vertex(v,m,x[next]-nx,y+.007,z[next]-nz,edge);vertex(v,m,x[i]-nx,y+.007,z[i]-nz,edge);
+            double nx=-dz/length*width,nz=dx/length*width;
+            vertex(v,m,ax+nx,y,az+nz,color);vertex(v,m,bx+nx,y,bz+nz,color);
+            vertex(v,m,bx-nx,y,bz-nz,color);vertex(v,m,ax-nx,y,az-nz,color);
         }
     }
 

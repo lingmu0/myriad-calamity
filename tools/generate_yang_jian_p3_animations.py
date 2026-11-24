@@ -71,6 +71,10 @@ def append_p3(pose,finish,attack_pose):
         frames=[frame(0,calm),frame(12,ready,-.6),frame(20,ready,-.6)]
         for i in range(1,11):
             p=copy.deepcopy(sweep);p['root']=[0,-arc*.5+arc*i/10,0]
+            reach = math.sin(i/10 * math.pi)
+            p['left_arm']=[34+23*reach,-18-13*reach,28+12*reach]
+            p['left_forearm']=[-30+18*reach,6,CARRY_ANGLE]
+            p['left_hand']=[-12*reach,5*reach,8*reach]
             frames.append(frame(20+i,p,-.6))
         frames.append(frame(31,p,-.6))
         end=copy.deepcopy(calm);end['root']=[0,360 if arc==360 else 0,0]

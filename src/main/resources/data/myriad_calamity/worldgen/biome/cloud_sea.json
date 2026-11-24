@@ -1,7 +1,7 @@
 {
-  "has_precipitation": false,
+  "has_precipitation": true,
   "temperature": 0.5,
-  "downfall": 0.0,
+  "downfall": 0.6,
   "effects": {
     "water_color": "#7fc5ce"
   },

@@ -9,6 +9,15 @@ public final class YangJianCombatTest {
     private static void check(boolean condition,String message) { checks++;if(!condition)throw new AssertionError(message); }
     private static boolean near(double a,double b) { return Math.abs(a-b)<1E-5; }
     public static void main(String[] args) {
+        check(YangJianSkill.targetLookPitch(0, 8)==0 && YangJianSkill.targetLookPitch(.3, 8)==0,
+            "Level footing and small height changes keep the gaze level");
+        check(YangJianSkill.targetLookPitch(3, 8)<0 && YangJianSkill.targetLookPitch(-3, 8)>0,
+            "The gaze raises toward higher targets and lowers toward lower targets");
+        check(YangJianSkill.targetLookPitch(8, 0)==-30 && YangJianSkill.targetLookPitch(-8, 0)==30,
+            "Steep targets are limited to 30 degrees in both directions");
+        check(Math.abs(YangJianSkill.targetLookPitch(3, 16))<Math.abs(YangJianSkill.targetLookPitch(3, 8)),
+            "Greater horizontal distance reduces pitch for the same height difference");
+        check(YangJianSkill.targetLookPitch(Double.NaN, 8)==0, "Invalid geometry leaves the gaze level");
         check(YangJianSkill.COMBO.steps()==4,"The normal chain contains all four authored attacks");
         check(YangJianSkill.FOUR_COMBO.steps()==4,"The quick chain still ends with its fourth heavy strike");
         check(YangJianSkill.SIX_COMBO.steps()==6,"The high-threat chain contains six separate damage windows");

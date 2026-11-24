@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 
 /** Geometry extracted from a single frame, with no live entity references at draw time. */
 final class CombatGeometry {
@@ -24,7 +23,10 @@ final class CombatGeometry {
     }
 
     void submit(PoseStack base,SubmitNodeCollector collector) {
-        if(!quads.colors.isEmpty())collector.submitCustomGeometry(base,RenderTypes.debugQuads(),quads::draw);
+        ShaderPackSupport.Pass renderPass=ShaderPackSupport.pass();
+        if(renderPass==ShaderPackSupport.Pass.SHADOW)return;
+        if(!quads.colors.isEmpty())collector.submitCustomGeometry(base,CombatEffectRenderLayer.type(renderPass),
+            (entry,vertices)->quads.draw(entry,CombatEffectRenderLayer.adapt(vertices,renderPass)));
         for(Pass pass:meshes) {
             base.pushPose();
             base.mulPose(pass.transform().pose());

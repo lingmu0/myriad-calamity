@@ -70,6 +70,15 @@ public enum YangJianSkill {
         this.action=action;this.cooldown=cooldown;this.windups=windups;this.active=active;
         this.gap=gap;this.recovery=recovery;this.radius=radius;
     }
+    public static final float MAX_LOOK_PITCH=30F;
+
+    public static float targetLookPitch(double heightDifference,double horizontalDistance) {
+        if (!Double.isFinite(heightDifference) || !Double.isFinite(horizontalDistance)) return 0;
+        double rise=Math.copySign(Math.max(0,Math.abs(heightDifference)-.45),heightDifference);
+        double pitch=-Math.toDegrees(Math.atan2(rise,Math.max(.8,horizontalDistance)));
+        return (float)Math.max(-MAX_LOOK_PITCH,Math.min(MAX_LOOK_PITCH,pitch));
+    }
+
     public int action() { return action; }
     public int phase() { return action>=23?3:action>=13?2:1; }
     public int weapon() {

@@ -35,7 +35,7 @@ public final class YangJianRenderer extends RiggedBossRenderer<YangJian> {
         state.yRot=Mth.wrapDegrees(Mth.rotLerp(partial,boss.yHeadRotO,boss.yHeadRot)-state.bodyRot);
         state.texture=TEXTURE;
         state.veiled=boss.action()==YangJian.INVISIBLE_DASH && boss.isInvisible();
-        rig.setupAnim(boss,partial,state.bodyRot,state.yRot,state.xRot);
+        rig.setupAnim(boss,partial,state.bodyRot,state.yRot);
         state.mesh=rig.snapshot();
         state.effects=new CombatGeometry();
         if(boss.isAlive())YangJianCombatEffects.render(boss,rig,partial,new PoseStack(),state.effects);

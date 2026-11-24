@@ -51,10 +51,8 @@ public final class MyriadConfig {
             .defineInRange("phase3Guard", DEFAULT_YANG_JIAN_PHASE_3_GUARD, 1.0D, 1_000_000.0D);
         YANG_JIAN_PHASE_3_HEALTH_FLOOR = builder.comment("Minimum fraction of maximum health retained when P3 begins. Higher remaining health is preserved.")
             .defineInRange("phase3HealthFloor", DEFAULT_YANG_JIAN_PHASE_3_HEALTH_FLOOR, 0.0D, 1.0D);
-        SHOW_ATTACK_INDICATORS = builder.comment("Draw Yang Jian's ground attack-range indicators. When disabled (default) only the",
-                "phase-two transition slam is still warned; every other move leaves no ground marker, and",
-                "phase-three falling strikes reveal their impact area with blade and lightning effects",
-                "instead of warning circles.")
+        SHOW_ATTACK_INDICATORS = builder.comment("Show Yang Jian's ground attack ranges, including lightning, sword rain, sweeps and the transition slam.",
+                "The attack animations, falling bolts, sword models and traveling shock waves remain visible.")
             .define("showAttackIndicators", DEFAULT_SHOW_ATTACK_INDICATORS);
         HOUND_HEALTH = builder.comment("Maximum health of a newly summoned celestial hound.")
             .defineInRange("houndHealth", DEFAULT_HOUND_HEALTH, 1.0D, 100_000.0D);

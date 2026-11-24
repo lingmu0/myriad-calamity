@@ -1,39 +1,19 @@
 """Generate original pixel textures and JSON assets; standard library only."""
 from pathlib import Path
-import json, struct, zlib, math
+import json
+from generate_item_sprites import write_sprite
 ROOT=Path(__file__).resolve().parents[1]
 RES=ROOT/'src/main/resources'
 NS='myriad_calamity'
 def write_json(rel,obj):
     p=RES/rel; p.parent.mkdir(parents=True,exist_ok=True)
     p.write_text(json.dumps(obj,ensure_ascii=False,indent=2)+'\n','utf8')
-def png(rel,w,h,pixels):
-    def chunk(tag,data): return struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
-    raw=b''.join(b'\x00'+bytes(sum(pixels[y*w:(y+1)*w],[])) for y in range(h))
-    data=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(raw,9))+chunk(b'IEND',b'')
-    p=RES/rel; p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(data)
-def icon(kind):
-    w=h=32; pixels=[[0,0,0,0] for _ in range(w*h)]
-    def put(x,y,c):
-        if 0<=x<w and 0<=y<h:pixels[y*w+x]=list(c)+[255]
-    gold=(220,178,92); dark=(62,55,47); bright=(255,228,155); teal=(82,218,202)
-    cx,cy=(15,10) if kind=='winding_key' else (16,16)
-    for y in range(h):
-        for x in range(w):
-            dx=x-cx;dy=y-cy;r=math.hypot(dx,dy);angle=math.atan2(dy,dx)
-            outer=8.5+(1.5 if math.cos(angle*8)>0.2 else 0)
-            if 4.0<r<outer:put(x,y,bright if dx+dy<-3 else gold if dx+dy<8 else dark)
-            if kind=='cogwork_heart' and r<4.5:put(x,y,teal if dx+dy<2 else (40,126,133))
-    if kind=='winding_key':
-        for y in range(18,29):
-            for x in range(13,18): put(x,y,gold if x>13 else bright)
-        for y in [22,23,27,28]:
-            for x in range(18,23):put(x,y,gold)
-    png(f'assets/{NS}/textures/item/{kind}.png',w,h,pixels)
 for name in ['winding_key','cogwork_heart']:
-    icon(name)
+    write_sprite(name,RES/f"assets/{NS}")
     write_json(f'assets/{NS}/models/item/{name}.json',{'parent':'minecraft:item/generated','textures':{'layer0':f'{NS}:item/{name}'}})
-write_json(f'assets/{NS}/models/item/cogwork_dancer_spawn_egg.json',{'parent':'minecraft:item/template_spawn_egg'})
+write_sprite('cogwork_dancer_spawn_egg',RES/f"assets/{NS}")
+write_json(f'assets/{NS}/models/item/cogwork_dancer_spawn_egg.json',{
+    'parent':'minecraft:item/generated','textures':{'layer0':f'{NS}:item/cogwork_dancer_spawn_egg'}})
 zh={
  'entity.myriad_calamity.cogwork_blade':'机枢剑光',
  'itemGroup.myriad_calamity':'万象灾厄',

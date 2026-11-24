@@ -38,8 +38,13 @@ def append_p2(pose, finish, attack_pose):
             else:load,hit=broad(True,1 if i%2==0 else -1),broad(False,1 if i%2==0 else -1)
             # The delayed final strike holds its loaded pose, avoiding an evenly paced combo.
             held=tick+w*.48 if name=='delayed_combo' and i==2 else tick+w*.7
+            follow=copy.deepcopy(hit)
+            follow['hips'][1] *= 1.15
+            follow['chest'][1] *= .85
+            follow['right_forearm'][0] -= 9
+            follow['left_arm'][0] -= 12
             frames += [frame(tick,pose()),frame(held,load,-.7),frame(tick+w-1.5,load,-.7),
-                       frame(tick+w,hit,-.6),frame(tick+w+active-.2,hit,-.4)]
+                       frame(tick+w,hit,-.6),frame(tick+w+active-.2,follow,-.36)]
             tick+=w+active+gap
         duration=tick-gap+recovery
         frames.append(frame(duration,pose()))
@@ -199,6 +204,7 @@ def append_p2(pose, finish, attack_pose):
         load['root']=[0,-arc/2,0]
         load['right_arm']=[72,-19,-40];load['right_forearm']=[-30,0,21];load['right_hand']=[-126,0,-14]
         load['left_arm']=[30,0,42];load['left_forearm']=[-46,0,-18]
+        load['hips'][1]=-6;load['waist'][1]=-7;load['chest'][1]=-10
         frames=[frame(0,pose()),frame(windup*.55,load,-.4),frame(windup,load,-.4)]
         for i in range(1,active+1):
             s=i/active
@@ -214,6 +220,9 @@ def append_p2(pose, finish, attack_pose):
             p['left_forearm']=[-38+11*lash,0,-18]
             p['left_thigh']=[math.sin(i/active*math.pi*2)*16,0,-7]
             p['right_thigh']=[-p['left_thigh'][0],0,7]
+            p['hips'][1]=4+5*math.sin(math.pi*s)
+            p['waist'][1]=3-6*math.cos(math.pi*s)
+            p['chest'][1]=8-11*math.cos(math.pi*s)
             p['chest'][2]=math.sin(i/active*math.pi)*-5
             frames.append(frame(windup+i,p,-.4))
         end=pose();end['root']=[0,360 if arc==360 else 0,0]

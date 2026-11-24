@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import net.xuwu.myriadcalamity.config.MyriadConfig;
 import net.xuwu.myriadcalamity.entity.YangJian;
 import net.xuwu.myriadcalamity.entity.YangJianTransition;
 import org.joml.Matrix4f;
@@ -57,7 +58,8 @@ final class YangJianTransitionEffects {
         pose.pushPose();pose.translate(center.x-camera.x,center.y-camera.y,center.z-camera.z);
         VertexConsumer v=buffers.quads();
         Matrix4f m=pose.last().pose();
-        if(age>=YangJianTransition.SUMMON_START && age<YangJianTransition.IMPACT) {
+        boolean showRange=MyriadConfig.showYangJianAttackIndicators();
+        if(showRange && age>=YangJianTransition.SUMMON_START && age<YangJianTransition.IMPACT) {
             float progress=Mth.clamp((age-YangJianTransition.SUMMON_START)
                 /(YangJianTransition.IMPACT-YangJianTransition.SUMMON_START),0,1);
             disk(v,m,radius,.048,alpha(24+progress*36,0xD79D15));
@@ -66,20 +68,15 @@ final class YangJianTransitionEffects {
             // Closing rings count down the arena-wide strike without implying a safe patch.
             ring(v,m,radius*(1-progress),.095,.071,alpha(135+progress*95,0xFFF6C7));
         }
-        if(age>=YangJianTransition.IMPACT && age<YangJianTransition.IMPACT+10) {
-            double fade=1-(age-YangJianTransition.IMPACT)/10;
-            disk(v,m,radius,.07,alpha(135*fade,0xFFF3B5));
-            ring(v,m,radius,.16,.10,alpha(245*fade,0xFFFDEB));
-            for(int i=0;i<24;i++) {
-                double heading=i*Math.PI/12;
-                Vec3 end=new Vec3(Math.cos(heading)*radius,.12,Math.sin(heading)*radius);
-                lightning(v,m,new Vec3(0,.12,0),end,age+i*13,.13,alpha(205*fade,0xFFF7CF));
+        float impactAge=age-YangJianTransition.IMPACT;
+        if(impactAge>=0 && impactAge<10) {
+            YangJianLightningEffects.strike(v,m,Vec3.ZERO,12,2.5,.31,impactAge,0,boss.getId(),
+                YangJianVisuals.GOLD,1);
+            if(showRange) {
+                double fade=1-impactAge/10;
+                disk(v,m,radius,.07,alpha(105*fade,0xFFF3B5));
+                ring(v,m,radius,.16,.10,alpha(230*fade,0xFFFDEB));
             }
-        }
-        if(age>=YangJianTransition.IMPACT+10 && age<YangJianTransition.EARLY_WAVE_START) {
-            double progress=(age-YangJianTransition.IMPACT-10)/(YangJianTransition.EARLY_WAVE_START-YangJianTransition.IMPACT-10);
-            ring(v,m,.55+progress*1.05,.055,.12,alpha(95+progress*130,0xFFE69B));
-            ring(v,m,.45,.09,.08,alpha(90+progress*120,0xFFF9D1));
         }
         double wave=YangJianTransition.waveRadius(age);
         if(wave>=0) {
@@ -133,16 +130,9 @@ final class YangJianTransitionEffects {
         }
     }
     private static void lightning(VertexConsumer v,Matrix4f m,Vec3 start,Vec3 end,double time,double jitter,int color) {
-        Vec3 direction=end.subtract(start).normalize();
-        Vec3 side=direction.cross(Math.abs(direction.y)>.9?new Vec3(1,0,0):new Vec3(0,1,0)).normalize();
-        Vec3 previous=start;
-        double frame=Math.floor(time*.5);
-        for(int i=1;i<=7;i++) {
-            Vec3 next=start.lerp(end,i/7D);
-            if(i<7)next=next.add(side.scale(Math.sin(frame*2.41+i*6.37)*jitter));
-            beam(v,m,previous,next,.026,color);
-            previous=next;
-        }
+        int seed=(int)(start.x*113+start.y*37+start.z*81+end.x*179+end.z*23);
+        YangJianVisuals.bolt(v,m,start,end,.047,jitter*2,time,seed,
+            YangJianVisuals.GOLD,(color>>>24)/255.0,false);
     }
     private static void beam(VertexConsumer v,Matrix4f m,Vec3 from,Vec3 to,double width,int color) {
         Vec3 direction=to.subtract(from).normalize();
