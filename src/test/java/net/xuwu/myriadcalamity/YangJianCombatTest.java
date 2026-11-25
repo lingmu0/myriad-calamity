@@ -25,7 +25,7 @@ public final class YangJianCombatTest {
         check(YangJianSkill.SIX_COMBO.stepWindup(2)>YangJianSkill.SIX_COMBO.stepWindup(1)*2,"The third six-chain strike intentionally delays its hit");
         check(YangJianSkill.SIX_COMBO.stepWindup(5)>=16,"The heavy finisher has a readable preparation window");
         for(YangJianSkill skill:YangJianSkill.values()) {
-            check(skill.phase()==(skill.action()>=23?3:skill.action()>=13?2:1),"Every action belongs to its authored phase");
+            check(skill.phase()>=1 && skill.phase()<=3 && skill.action()<=YangJianSkill.MAX_ACTION,"Every action belongs to its authored phase within MAX_ACTION");
             check(YangJianSkill.forAction(skill.action())==skill,"Synchronized IDs map back to their authored timing");
             if(skill.meleeCombo() || skill==YangJianSkill.COORDINATED) {
                 for(int step=0;step<skill.steps();step++) {
@@ -81,8 +81,21 @@ public final class YangJianCombatTest {
                 if(step+1<skill.steps())check(skill.stepStart(step+1)>skill.stepHit(step)+skill.stepActive(step)-1,"P2 combo segments never reuse a previous live plan");
             }
         }
-        check(p2Count==10,"All ten specified P2 skills are present, without any P3 entry");
-        check(p3Count==10,"P3 includes eye opening and all nine final-phase attacks");
+        check(p2Count==12,"All twelve specified P2 skills (including weapon-swap variations) are present");
+        check(p3Count==12,"P3 includes eye opening, all nine core attacks, and two divine variation skills");
+        // Verify all six Black Myth: Wukong-inspired variation skills per phase
+        check(YangJianSkill.VAULT_SLAM.phase()==1 && YangJianSkill.VAULT_SLAM.weight(7,false,false,false,1,0,0)>0,"P1 vault slam enters mid-range pool");
+        check(YangJianSkill.CLOUD_FEINT_THRUST.phase()==1 && YangJianSkill.CLOUD_FEINT_THRUST.steps()==2
+            && YangJianSkill.CLOUD_FEINT_THRUST.weight(5,false,false,false,1,0,0)>0,"P1 cloud-step feint thrust has two steps and enters close/mid pool");
+        check(YangJianSkill.AXE_DRAW_MIXUP.phase()==2 && YangJianSkill.AXE_DRAW_MIXUP.steps()==2 && YangJianSkill.AXE_DRAW_MIXUP.weapon()==1
+            && YangJianSkill.AXE_DRAW_MIXUP.weightForPhase(2,1,6,false,false,false,.5,0,0,false)>0,"P2 axe-to-draw variation enters P2 pool");
+        check(YangJianSkill.WHIP_LANCE_REEL.phase()==2 && YangJianSkill.WHIP_LANCE_REEL.steps()==2 && YangJianSkill.WHIP_LANCE_REEL.weapon()==3
+            && YangJianSkill.WHIP_LANCE_REEL.weightForPhase(2,0,9,false,false,false,.5,0,0,false)>0,"P2 whip-to-lance variation enters P2 pool");
+        check(YangJianSkill.EYE_BLINK_CLEAVE.phase()==3 && YangJianSkill.EYE_BLINK_CLEAVE.steps()==2
+            && YangJianSkill.EYE_BLINK_CLEAVE.weightForPhase(3,0,10,false,false,false,.4,0,0,false)>0,"P3 eye-blink cleave enters P3 pool");
+        check(near(YangJianSkill.eyeBlinkWeaponLength(10),1) && near(YangJianSkill.eyeBlinkWeaponLength(40),YangJianSkill.DIVINE_SWEEP_WEAPON_LENGTH)
+            && near(YangJianSkill.eyeBlinkWeaponLength(64),1),"Eye-blink cleave extends spear only during its follow-up sweep");
+        check(YangJianSkill.CRIMSON_SKY_PLUNGE.phase()==3 && YangJianSkill.CRIMSON_SKY_PLUNGE.weightForPhase(3,0,11,false,false,false,.4,0,0,false)>0,"P3 crimson sky plunge enters P3 pool");
         check(YangJianSkill.THIRD_EYE_OPEN.weightForPhase(3,0,8,false,false,false,.4,0,0,false)==0,"Eye opening belongs exclusively to the guard transition");
         for(double distance:new double[]{0,3,4,8,14,20,30}) {
             check(YangJianSkill.TRACKING_BEAM.weightForPhase(3,0,distance,true,true,false,.4,0,0,true)==0

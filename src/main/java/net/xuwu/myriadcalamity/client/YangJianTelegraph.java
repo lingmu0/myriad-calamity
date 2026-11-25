@@ -78,8 +78,9 @@ public final class YangJianTelegraph {
     private static YangJianVisuals.Palette lightningPalette(YangJian boss) {
         return switch(boss.action()) {
             case YangJian.AXE_SLAM,YangJian.AXE_COMBO,YangJian.WHIP_SWEEP,YangJian.WHIP_SPIN,
-                YangJian.LIGHTNING_THRUST -> YangJianVisuals.BLUE;
-            case YangJian.DIVINE_SWEEP -> YangJianVisuals.RED;
+                YangJian.LIGHTNING_THRUST,YangJian.WHIP_LANCE_REEL -> YangJianVisuals.BLUE;
+            case YangJian.AXE_DRAW_MIXUP -> boss.comboStep()==0?YangJianVisuals.BLUE:null;
+            case YangJian.DIVINE_SWEEP,YangJian.EYE_BLINK_CLEAVE,YangJian.CRIMSON_SKY_PLUNGE -> YangJianVisuals.RED;
             default -> null;
         };
     }

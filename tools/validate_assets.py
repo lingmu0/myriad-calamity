@@ -38,7 +38,7 @@ for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_tal
         if namespace==NS:check((RES/f'assets/{NS}/textures/{relative}.png').exists(),f'Model texture: {texture}')
 for png in RES.rglob('*.png'):
     dimensions=read_png(png)
-    expected = {'yang_jian.png': (2048,2048), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
+    expected = {'yang_jian.png': (2048,2048), 'cogwork_dancer.png': (1024,1024), 'cogwork_dancer_silver.png': (1024,1024), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
     default_dimensions = {'entity': (256,256), 'item': (16,16), 'effect': (1,1)}
     check(dimensions==expected.get(png.name, default_dimensions.get(png.parent.name,(32,32))),f'Texture dimensions: {png}')
 recipe=jsons[f'data/{NS}/recipes/winding_key.json']

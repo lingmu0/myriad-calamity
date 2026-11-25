@@ -36,6 +36,7 @@ public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
     private final Map<String,Bone> bones=new HashMap<>();
     private final Map<String,Clip> clips=new HashMap<>();
     private final Map<CogworkDancer,AnimationPlayback> playback=new WeakHashMap<>();
+    private final Map<CogworkDancer,float[]> motionState=new WeakHashMap<>();
     private boolean halo;
     public CogworkDancerModel(ResourceManager resources) {
         JsonObject mesh=read(resources,"mesh/cogwork_dancer.json");
@@ -98,13 +99,80 @@ public final class CogworkDancerModel extends EntityModel<CogworkDancer> {
         }
         float transition=name.equals("idle") || name.equals("solo_idle")?5:name.endsWith("windup")?3:2;
         if(name.equals("death") || name.endsWith("recover"))transition=4;
+        if(name.equals("barrage_dash"))transition=1.5F;
         Map<String,AnimationPlayback.Pose> pose=playback.computeIfAbsent(dancer,ignored->new AnimationPlayback())
             .apply(dancer.action()+":"+name,age,transition,sampled);
         for(Bone bone:bones.values()) {
             AnimationPlayback.Pose value=pose.get(bone.name);
             bone.position=value.position();bone.rotation=value.rotation();bone.scale=value.scale();
         }
+        applyLocomotionAndChoreography(dancer,name,elapsed,windup,partial);
         halo=dancer.deathTime==0 && elapsed>=0 && dancer.action()!=CogworkDancer.IDLE && (elapsed<windup || dancer.action()==CogworkDancer.SPIN || dancer.action()==CogworkDancer.REWIND || dancer.action()==CogworkDancer.BARRAGE);
+    }
+
+    /** Adds smooth velocity-driven banking/gliding and alternating 4-pass barrage roll without altering authored curves. */
+    private void applyLocomotionAndChoreography(CogworkDancer dancer,String clipName,float elapsed,float windup,float partial) {
+        if(dancer.deathTime>0)return;
+        double dx=dancer.getX()-dancer.xOld,dy=dancer.getY()-dancer.yOld,dz=dancer.getZ()-dancer.zOld;
+        float yawRad=Mth.rotLerp(partial,dancer.yBodyRotO,dancer.yBodyRot)*Mth.DEG_TO_RAD;
+        double fwdX=-Math.sin(yawRad),fwdZ=Math.cos(yawRad);
+        double rightX=Math.cos(yawRad),rightZ=Math.sin(yawRad);
+        float fwdSpeed=Mth.clamp((float)(dx*fwdX+dz*fwdZ)*6.5F,-1.4F,1.6F);
+        float latSpeed=Mth.clamp((float)(dx*rightX+dz*rightZ)*6.5F,-1.4F,1.4F);
+        float vertSpeed=Mth.clamp((float)dy*4.5F,-1.2F,1.2F);
+        float[] smooth=motionState.computeIfAbsent(dancer,ignored->new float[3]);
+        smooth[0]=Mth.lerp(.24F,smooth[0],fwdSpeed);
+        smooth[1]=Mth.lerp(.24F,smooth[1],latSpeed);
+        smooth[2]=Mth.lerp(.24F,smooth[2],vertSpeed);
+        float sf=smooth[0],sl=smooth[1],sv=smooth[2];
+        if(clipName.equals("idle") || clipName.equals("solo_idle") || clipName.equals("rewind")) {
+            float gain=clipName.equals("solo_idle")?.65F:1F;
+            float speedMag=Math.min(1.4F,(float)Math.hypot(sf,sl));
+            addRot("body",sf*11F*gain,0,-sl*14F*gain);
+            addRot("chest",sf*4F*gain,sl*6F*gain,-sl*5F*gain);
+            addRot("head",-sf*7F*gain,Mth.clamp(sl*12F,-18F,18F),sl*5F*gain);
+            addRot("left_leg",sf*14F*gain-sv*8F,0,-speedMag*4F*gain);
+            addRot("right_leg",sf*18F*gain-sv*8F,0,speedMag*4F*gain);
+            addRot("left_knee",speedMag*12F*gain,0,0);
+            addRot("right_knee",speedMag*16F*gain,0,0);
+            addRot("left_arm",sf*8F*gain,0,-speedMag*7F*gain);
+            addRot("right_arm",sf*8F*gain,0,speedMag*7F*gain);
+            addRot("skirt",sf*10F*gain,0,sl*9F*gain);
+            for(int j=0;j<3;j++) {
+                float w=(1F+j*.38F)*gain;
+                addRot("left_tail_"+j,(sf*11F+speedMag*4F)*w,sl*4F*w,sl*8F*w);
+                addRot("right_tail_"+j,(sf*11F+speedMag*4F)*w,sl*4F*w,sl*8F*w);
+            }
+        } else if(clipName.equals("barrage_dash")) {
+            float active=Math.max(0,elapsed-windup);
+            int pass=(int)(active/CombatMath.BARRAGE_PASS_TICKS);
+            float mirror=((pass+(dancer.follower()?1:0))&1)==0?1F:-1F;
+            float local=(active%CombatMath.BARRAGE_PASS_TICKS)/CombatMath.BARRAGE_PASS_TICKS;
+            float env=Mth.sin(local*Mth.PI);
+            addRot("body",0,0,mirror*8F*env-sl*6F);
+            addRot("chest",0,mirror*7F*env,mirror*5F*env);
+            addRot("left_arm",-mirror*6F*env,0,-mirror*8F*env);
+            addRot("right_arm",mirror*6F*env,0,mirror*8F*env);
+            for(int j=0;j<3;j++) {
+                float w=1F+j*.32F;
+                addRot("left_tail_"+j,Math.abs(sf)*4F*w,0,(-mirror*9F*env+sl*6F)*w);
+                addRot("right_tail_"+j,Math.abs(sf)*4F*w,0,(-mirror*9F*env+sl*6F)*w);
+            }
+        } else if(clipName.equals("dash")) {
+            float speedMag=Math.min(1.5F,(float)Math.hypot(sf,sl));
+            addRot("body",0,0,-sl*6F);
+            for(int j=0;j<3;j++) {
+                float w=1F+j*.3F;
+                addRot("left_tail_"+j,speedMag*5F*w,0,sl*5F*w);
+                addRot("right_tail_"+j,speedMag*5F*w,0,sl*5F*w);
+            }
+        }
+    }
+
+    private void addRot(String name,float dx,float dy,float dz) {
+        Bone bone=bones.get(name);
+        if(bone==null)return;
+        bone.rotation=new float[]{bone.rotation[0]+dx,bone.rotation[1]+dy,bone.rotation[2]+dz};
     }
     @Override public void renderToBuffer(PoseStack pose,VertexConsumer buffer,int light,int overlay,float red,float green,float blue,float alpha) {
         render(pose,buffer,light,overlay,FastColor.ARGB32.color((int)(alpha*255F),(int)(red*255F),(int)(green*255F),(int)(blue*255F)));
