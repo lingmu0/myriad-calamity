@@ -1,6 +1,7 @@
 package net.xuwu.myriadcalamity.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -10,10 +11,11 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import net.xuwu.myriadcalamity.entity.DivineFlyingSword;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-/** Visible revolving jian blades align with their flight direction; neither volley draws targeting rays. */
+/** Visible revolving jian blades align with their flight direction, with launch bursts and luminous wakes. */
 public final class DivineFlyingSwordRenderer extends EntityRenderer<DivineFlyingSword> {
     private final YangJianWeapons weapons;
     private final YangJianProjectileTrail trail = new YangJianProjectileTrail();
@@ -22,13 +24,34 @@ public final class DivineFlyingSwordRenderer extends EntityRenderer<DivineFlying
     }
     @Override public void render(DivineFlyingSword sword,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light) {
         if(!sword.hasPlan())return;
+        YangJianVisuals.Palette palette = sword.myriadSword() ? YangJianVisuals.RED : YangJianVisuals.SILVER;
+        VertexConsumer v = CombatEffectRenderLayer.buffer(buffers);
+        Matrix4f m = pose.last().pose();
+        Vec3 heading = sword.facing(partial);
+
         if (!sword.stepThrow() || sword.flying(partial)) {
-            trail.render(sword, partial, sword.myriadSword() ? 6.2 : 4.8, sword.stepThrow() ? .12 : .19,
-                sword.myriadSword() ? YangJianVisuals.RED : YangJianVisuals.SILVER,
-                CombatEffectRenderLayer.buffer(buffers), pose.last().pose());
+            trail.render(sword, partial, sword.myriadSword() ? 6.8 : 5.4, sword.stepThrow() ? .13 : .22,
+                palette, v, m);
         }
+        // Subtle celestial aura flare while orbiting/aiming, plus a crisp sonic launch ring on release!
+        if (!sword.stepThrow()) {
+            float age = sword.effectAge(partial);
+            float flightAge = age - sword.releaseTick();
+            Vec3 side = YangJianVisuals.side(heading);
+            Vec3 up = heading.cross(side).normalize();
+            if (flightAge < 0) {
+                double pulse = .75 + .25 * Math.sin(age * .55 + sword.getId());
+                YangJianVisuals.flare(v, m, heading.scale(-.35), side, up, .28 * pulse, .62 * pulse, palette);
+            } else if (flightAge < 4.5F) {
+                double t = flightAge / 4.5;
+                double fade = (1 - t) * (1 - t);
+                YangJianVisuals.orientedRing(v, m, heading.scale(-.45 - t * .5), side, up,
+                    .22 + t * .72, .055 * fade + .015, YangJianVisuals.tint(palette.core(), fade * .9));
+                YangJianVisuals.sonicCone(v, m, heading.scale(.65), heading, 1.35, .36, palette, fade * .75);
+            }
+        }
+
         pose.pushPose();
-        Vec3 heading=sword.facing(partial);
         pose.mulPose(new Quaternionf().rotationTo(new Vector3f(0,-1,0),new Vector3f((float)heading.x,(float)heading.y,(float)heading.z)));
         float scale=sword.stepThrow()?.4F:.65F;
         pose.scale(scale,scale,scale);

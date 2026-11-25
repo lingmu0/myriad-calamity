@@ -12,7 +12,7 @@ import net.xuwu.myriadcalamity.entity.LightningScar;
 import net.xuwu.myriadcalamity.entity.LightningTrail;
 import org.joml.Matrix4f;
 
-/** Repeated strikes are staggered within the server-defined thunder field. */
+/** Repeated strikes and leaping ground arcs are staggered within the server-defined thunder field. */
 public final class LightningTrailRenderer extends EntityRenderer<LightningTrail> {
     private static final int GLOW_RGB=0x2456D6,CORE_RGB=0xDEF0FF;
     private static final int ARC_RGB=0x3C78EB;
@@ -50,11 +50,21 @@ public final class LightningTrailRenderer extends EntityRenderer<LightningTrail>
         double[][] strikes=LightningScar.pillars(shape,anchor.x,anchor.z,headingX,headingZ,center.x,center.z,
             radius,arc,LightningScar.MAX_PILLARS);
         int interval=trail.persistent()?Math.max(13,strikes.length*3):0;
-        double spread=Math.min(radius*.54,1.90);
+        double spread=Math.min(radius*.58,2.10);
         Matrix4f matrix=pose.last().pose();
         for(int i=0;i<strikes.length;i++) {
             YangJianLightningEffects.strike(v,matrix,point(strikes[i],.044),LightningScar.PILLAR_HEIGHT,
-                spread,.192,age-i*3,interval,trail.getId()+i*37,YangJianVisuals.BLUE,fade);
+                spread,.21,age-i*3,interval,trail.getId()+i*37,YangJianVisuals.BLUE,fade);
+        }
+        // Subtle low-lying crackling arc filaments jumping between nearby strike points in the electric field
+        if(strikes.length>=2) {
+            int activePair=((int)(age/3)+trail.getId())%strikes.length;
+            int nextPair=(activePair+1)%strikes.length;
+            Vec3 pA=point(strikes[activePair],.16), pB=point(strikes[nextPair],.16);
+            if(pA.distanceToSqr(pB)<=64) {
+                YangJianVisuals.bolt(v,matrix,pA,pB,.034,.22,age,trail.getId()+activePair*53,
+                    YangJianVisuals.BLUE,fade*(.45+.35*breathe),false);
+            }
         }
         super.render(trail,yaw,partial,pose,buffers,light);
     }

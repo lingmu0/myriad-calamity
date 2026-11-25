@@ -1,11 +1,11 @@
 {
   "created_with": "Blockbench MCP",
-  "server_version": "1.6.1",
-  "source_sha256": "f3806592e868fedb0299e53c9e499fa926c9bed553048ebf29c5e6885f488e6b",
-  "cubes": 283,
-  "meshes": 30,
+  "server_version": "1.10.1",
+  "source_sha256": "a86b82b68b8f5c7b6ba64e79055ce93618d79da9f2303b5166407645a1dbc274",
+  "cubes": 490,
+  "meshes": 0,
   "bones": 35,
-  "rendered_faces": 2008,
+  "rendered_faces": 2940,
   "animations": [
     "idle",
     "dash_windup",
@@ -23,8 +23,8 @@
     "barrage_recover"
   ],
   "texture_size": [
-    256,
-    256
+    1024,
+    1024
   ],
   "sampling_fps": 60,
   "interpolation": "Editable Catmull-Rom, baked at 60 Hz"

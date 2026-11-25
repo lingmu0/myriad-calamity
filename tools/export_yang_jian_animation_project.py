@@ -11,7 +11,8 @@ groups={g['name']:g['uuid'] for g in model['groups']}
 def uid(value):return str(uuid.uuid5(uuid.NAMESPACE_URL,'myriad_calamity:yang_jian:p1:'+value))
 animations=[]
 P1_CLIPS={'idle','walk','combo','four_combo','six_combo','throw','throw_followup','recall',
-          'thrust_windup','thrust','summon_hound','coordinated','guard','counter_windup','counter','phase_clear','death'}
+          'thrust_windup','thrust','summon_hound','coordinated','guard','counter_windup','counter',
+          'vault_slam','cloud_feint_thrust','phase_clear','death'}
 for name,clip in source.items():
     if name not in P1_CLIPS:continue
     animators={}

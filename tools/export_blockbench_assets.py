@@ -7,6 +7,8 @@ SOURCE=ROOT/'modeling/cogwork_dancer.bbmodel'
 model=json.loads(SOURCE.read_text('utf8'))
 RES=ROOT/'src/main/resources/assets/myriad_calamity'
 groups={g['uuid']:g for g in model['groups']}; elements={e['uuid']:e for e in model['elements']}
+res=model.get('resolution',{})
+tex_w=float(res.get('width',256)); tex_h=float(res.get('height',256))
 count=0
 def convert_vector(v):return [round(v[0],6),round(-v[1],6),round(v[2],6)]
 def sub(a,b):return [a[i]-b[i] for i in range(3)]
@@ -46,26 +48,31 @@ def element_faces(element):
     points.append(([v[i]+origin[i] for i in range(3)],uv))
    yield points
  else:raise ValueError('Unsupported geometry: '+element['type'])
+def is_glow(element,points):
+ if element.get('shade') is False:return True
+ if tex_w==256 and tex_h==256:
+  first_uv=points[0][1];material=int(first_uv[0]//64)+int(first_uv[1]//64)*4
+  return material in [4,5]
+ return False
 def node(entry,parent_origin):
  global count
- g=groups[entry['uuid']];origin=g['origin']
- out={'name':g['name'],'pivot':convert_vector(sub(origin,parent_origin)), 'rotation':[-g['rotation'][0],g['rotation'][1],-g['rotation'][2]],'faces':[],'children':[]}
+ g=groups[entry['uuid']];origin=g['origin'];rot=g.get('rotation',[0,0,0])
+ out={'name':g['name'],'pivot':convert_vector(sub(origin,parent_origin)), 'rotation':[-rot[0],rot[1],-rot[2]],'faces':[],'children':[]}
  for child in entry['children']:
   if isinstance(child,dict):out['children'].append(node(child,origin));continue
   element=elements[child]
   for points in element_faces(element):
    if len(points) not in (3,4):raise ValueError('Triangulate polygons before export')
-   vertices=[convert_vector(sub(pos,origin))+[round(v/256,7) for v in uv] for pos,uv in reversed(points)]
+   vertices=[convert_vector(sub(pos,origin))+[round(uv[0]/tex_w,7),round(uv[1]/tex_h,7)] for pos,uv in reversed(points)]
    a=sub(vertices[1],vertices[0]);b=sub(vertices[2],vertices[0])
    normal=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
    length=math.sqrt(sum(v*v for v in normal))
    if length<1e-7:continue
    normal=[round(v/length,6) for v in normal]
    if len(vertices)==3:vertices.append(vertices[-1])
-   first_uv=points[0][1];material=int(first_uv[0]//64)+int(first_uv[1]//64)*4
-   out['faces'].append({'v':vertices,'n':normal,'glow':material in [4,5]});count+=1
+   out['faces'].append({'v':vertices,'n':normal,'glow':is_glow(element,points)});count+=1
  return out
-mesh={'format':1,'source':'Blockbench MCP 1.6.1','texture_size':[256,256],'bones':[node(n,[0,0,0]) for n in model['outliner']]}
+mesh={'format':1,'source':'Blockbench MCP 1.10.1','texture_size':[int(tex_w),int(tex_h)],'bones':[node(n,[0,0,0]) for n in model['outliner']]}
 clips={}
 for clip in model['animations']:
  bones={}
@@ -88,6 +95,6 @@ for texture in model['textures']:
  path.write_bytes(base64.b64decode(texture['source'].split(',',1)[1]))
 for path,obj in [(RES/'mesh/cogwork_dancer.json',mesh),(RES/'boss_animations/cogwork_dancer.json',{'format':1,'sampling_fps':60,'interpolation_source':'Blockbench SplineCurve / linear','clips':clips})]:
  path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(obj,separators=(',',':')),'utf8')
-manifest={'created_with':'Blockbench MCP','server_version':'1.6.1','source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),'cubes':sum(e['type']=='cube' for e in elements.values()),'meshes':sum(e['type']=='mesh' for e in elements.values()),'bones':len(groups),'rendered_faces':count,'animations':list(clips),'texture_size':[256,256],'sampling_fps':60,'interpolation':'Editable Catmull-Rom, baked at 60 Hz'}
+manifest={'created_with':'Blockbench MCP','server_version':'1.10.1','source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),'cubes':sum(e['type']=='cube' for e in elements.values()),'meshes':sum(e['type']=='mesh' for e in elements.values()),'bones':len(groups),'rendered_faces':count,'animations':list(clips),'texture_size':[int(tex_w),int(tex_h)],'sampling_fps':60,'interpolation':'Editable Catmull-Rom, baked at 60 Hz'}
 (ROOT/'modeling/mcp-export-manifest.json').write_text(json.dumps(manifest,indent=2),'utf8')
-print(f'Imported Blockbench output: {len(elements)} cuboid/mesh elements, {len(groups)} bones, {count} faces, {len(clips)} animations.')
+print(f'Imported Blockbench output: {len(elements)} cuboid/mesh elements, {len(groups)} bones, {count} faces, {len(clips)} animations, {int(tex_w)}x{int(tex_h)} atlas.')

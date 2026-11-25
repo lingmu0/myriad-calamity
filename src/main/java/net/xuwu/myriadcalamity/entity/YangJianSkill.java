@@ -2,44 +2,52 @@ package net.xuwu.myriadcalamity.entity;
 
 /** Authored three-phase timings and selection rules, independent of Minecraft for verification. */
 public enum YangJianSkill {
-    COMBO(1, 28, new int[]{8,7,10,17}, 3, 3, 14, 4.0F),
-    FOUR_COMBO(2, 90, new int[]{7,5,7,16}, 3, 2, 16, 4.4F),
-    SIX_COMBO(3, 180, new int[]{7,5,15,5,7,18}, 3, 2, 20, 4.8F),
-    THROW(4, 140, new int[]{16}, 34, 0, 16, 1.2F),
-    THRUST(5, 65, new int[]{18}, 6, 0, 16, 1.2F),
-    SUMMON_HOUND(6, 440, new int[]{24}, 1, 0, 18, 0),
-    COORDINATED(7, 150, new int[]{12,16}, 5, 5, 18, 4.2F),
-    GUARD(8, 55, new int[]{8}, 0, 0, 8, 0),
-    COUNTER(9, 75, new int[]{12}, 5, 0, 18, 1.2F),
-    ROAR_MARK(11, 0, new int[]{0}, 0, 0, 0, 0),
-    AXE_SUMMON(13,100,new int[]{24},1,0,12,0),
-    AXE_SLAM(14,150,new int[]{28},3,0,22,6.4F),
-    AXE_COMBO(15,110,new int[]{10,8,11,24},4,3,22,5.7F),
-    FLYING_SWORDS(16,150,new int[]{24},1,0,18,1.2F),
-    DRAW_SLASH(17,75,new int[]{18},2,0,20,7),
-    WHIP_SWEEP(18,105,new int[]{22},8,0,18,11),
-    WHIP_SPIN(19,160,new int[]{28},12,0,24,10.5F),
-    LIGHTNING_THRUST(20,85,new int[]{18},6,0,20,1.2F),
-    INVISIBLE_DASH(21,240,new int[]{30},6,0,22,1.2F),
-    DELAYED_COMBO(22,105,new int[]{7,6,24},3,3,22,5.5F),
-    THIRD_EYE_OPEN(23,0,new int[]{70},0,0,0,0),
+    COMBO(1, 1, 28, new int[]{8,7,10,17}, 3, 3, 14, 4.0F),
+    FOUR_COMBO(2, 1, 90, new int[]{7,5,7,16}, 3, 2, 16, 4.4F),
+    SIX_COMBO(3, 1, 180, new int[]{7,5,15,5,7,18}, 3, 2, 20, 4.8F),
+    THROW(4, 1, 140, new int[]{16}, 34, 0, 16, 1.2F),
+    THRUST(5, 1, 65, new int[]{18}, 6, 0, 16, 1.2F),
+    SUMMON_HOUND(6, 1, 440, new int[]{24}, 1, 0, 18, 0),
+    COORDINATED(7, 1, 150, new int[]{12,16}, 5, 5, 18, 4.2F),
+    GUARD(8, 1, 55, new int[]{8}, 0, 0, 8, 0),
+    COUNTER(9, 1, 75, new int[]{12}, 5, 0, 18, 1.2F),
+    ROAR_MARK(11, 1, 0, new int[]{0}, 0, 0, 0, 0),
+    AXE_SUMMON(13, 2, 100, new int[]{24}, 1, 0, 12, 0),
+    AXE_SLAM(14, 2, 150, new int[]{28}, 3, 0, 22, 6.4F),
+    AXE_COMBO(15, 2, 110, new int[]{10,8,11,24}, 4, 3, 22, 5.7F),
+    FLYING_SWORDS(16, 2, 150, new int[]{24}, 1, 0, 18, 1.2F),
+    DRAW_SLASH(17, 2, 75, new int[]{18}, 2, 0, 20, 7),
+    WHIP_SWEEP(18, 2, 105, new int[]{22}, 8, 0, 18, 11),
+    WHIP_SPIN(19, 2, 160, new int[]{28}, 12, 0, 24, 10.5F),
+    LIGHTNING_THRUST(20, 2, 85, new int[]{18}, 6, 0, 20, 1.2F),
+    INVISIBLE_DASH(21, 2, 240, new int[]{30}, 6, 0, 22, 1.2F),
+    DELAYED_COMBO(22, 2, 105, new int[]{7,6,24}, 3, 3, 22, 5.5F),
+    THIRD_EYE_OPEN(23, 3, 0, new int[]{70}, 0, 0, 0, 0),
     // P3 is deliberately tighter than P1/P2: shorter windups, shorter cooldowns,
     // and less recovery keep the final phase moving without changing hitbox sizes.
     // The eye beam is a short, narrow, high-impact shot rather than a long
     // sustained ray.  Its player lock is sampled once when the hazard starts.
-    EYE_BEAM(24,100,new int[]{10},8,0,14,.18F),
+    EYE_BEAM(24, 3, 100, new int[]{10}, 8, 0, 14, .18F),
     // Body and clone alternate every half sweep: 3 body passes plus the final
     // half of the third clone pass (32 + 16 tick cadence = 112 active ticks).
-    SWEEP_BEAM(25,180,new int[]{24},112,0,22,.65F),
-    TRACKING_BEAM(26,165,new int[]{22},50,0,22,.55F),
-    MYRIAD_SWORDS(27,220,new int[]{24},90,0,26,2.1F),
-    SWORD_RAIN(28,185,new int[]{18},132,0,22,2.2F),
-    RED_THUNDER(29,150,new int[]{14},56,0,20,2.8F),
-    DIVINE_SWEEP(30,85,new int[]{20},10,0,20,12),
-    AERIAL_COMBO(31,340,new int[]{24},126,0,30,4.8F),
-    DIVINE_JUDGEMENT(32,1200,new int[]{44},240,0,44,6);
+    SWEEP_BEAM(25, 3, 180, new int[]{24}, 112, 0, 22, .65F),
+    TRACKING_BEAM(26, 3, 165, new int[]{22}, 50, 0, 22, .55F),
+    MYRIAD_SWORDS(27, 3, 220, new int[]{24}, 90, 0, 26, 2.1F),
+    SWORD_RAIN(28, 3, 185, new int[]{18}, 132, 0, 22, 2.2F),
+    RED_THUNDER(29, 3, 150, new int[]{14}, 56, 0, 20, 2.8F),
+    DIVINE_SWEEP(30, 3, 85, new int[]{20}, 10, 0, 20, 12),
+    AERIAL_COMBO(31, 3, 340, new int[]{24}, 126, 0, 30, 4.8F),
+    DIVINE_JUDGEMENT(32, 3, 1200, new int[]{44}, 240, 0, 44, 6),
+    // Black Myth: Wukong-inspired phase variation / mix-up skills (2 per phase, IDs 33..38).
+    VAULT_SLAM(33, 1, 125, new int[]{24}, 3, 0, 18, 5.0F),
+    CLOUD_FEINT_THRUST(34, 1, 115, new int[]{9,15}, 5, 4, 18, 4.2F),
+    AXE_DRAW_MIXUP(35, 2, 120, new int[]{14,16}, 3, 4, 20, 6.2F),
+    WHIP_LANCE_REEL(36, 2, 135, new int[]{18,14}, 6, 4, 20, 10.0F),
+    EYE_BLINK_CLEAVE(37, 3, 125, new int[]{12,16}, 8, 4, 20, 11.0F),
+    CRIMSON_SKY_PLUNGE(38, 3, 155, new int[]{34}, 6, 0, 22, 5.6F);
 
-    private final int action, cooldown, active, gap, recovery;
+    public static final int MAX_ACTION = 38;
+    private final int action, phase, cooldown, active, gap, recovery;
     private final int[] windups;
     private final float radius;
     /** Empty defense bars stay exposed for two real minutes before recharging. */
@@ -66,8 +74,8 @@ public enum YangJianSkill {
     public static int rainBurstWarning(int firstWarning,int wave) {
         return firstWarning-RAIN_BURST_WARNING_STEP*Math.max(0,wave);
     }
-    YangJianSkill(int action,int cooldown,int[] windups,int active,int gap,int recovery,float radius) {
-        this.action=action;this.cooldown=cooldown;this.windups=windups;this.active=active;
+    YangJianSkill(int action,int phase,int cooldown,int[] windups,int active,int gap,int recovery,float radius) {
+        this.action=action;this.phase=phase;this.cooldown=cooldown;this.windups=windups;this.active=active;
         this.gap=gap;this.recovery=recovery;this.radius=radius;
     }
     public static final float MAX_LOOK_PITCH=30F;
@@ -80,12 +88,12 @@ public enum YangJianSkill {
     }
 
     public int action() { return action; }
-    public int phase() { return action>=23?3:action>=13?2:1; }
+    public int phase() { return phase; }
     public int weapon() {
         return switch(this) {
-            case AXE_SUMMON,AXE_SLAM,AXE_COMBO -> 1;
+            case AXE_SUMMON,AXE_SLAM,AXE_COMBO,AXE_DRAW_MIXUP -> 1;
             case FLYING_SWORDS,DRAW_SLASH,INVISIBLE_DASH,DELAYED_COMBO -> 2;
-            case WHIP_SWEEP,WHIP_SPIN -> 3;
+            case WHIP_SWEEP,WHIP_SPIN,WHIP_LANCE_REEL -> 3;
             default -> 0;
         };
     }
@@ -120,7 +128,7 @@ public enum YangJianSkill {
     }
     /** Only the long strings convert; the basic three-hit combo always finishes its beats. */
     public boolean convertsWhenTargetEscapes() { return this==FOUR_COMBO || this==SIX_COMBO; }
-    public boolean phaseTwoCombo() { return this==AXE_COMBO || this==DELAYED_COMBO; }
+    public boolean phaseTwoCombo() { return this==AXE_COMBO || this==DELAYED_COMBO || this==AXE_DRAW_MIXUP || this==WHIP_LANCE_REEL; }
     public static final int PHASE_TWO_LINK_RECOVERY=8,PHASE_TWO_FINAL_RECOVERY=28,PHASE_THREE_FINAL_RECOVERY=28;
     public static boolean canChain(int count,int limit) { return count>=1 && count<Math.clamp(limit,2,3); }
     public static int restoredPhase(int saved) { return Math.clamp(saved,1,3); }
@@ -171,6 +179,14 @@ public enum YangJianSkill {
         float fade=1F-Math.clamp((age-(windup+active+4))/10F,0,1);
         return 1F+(DIVINE_SWEEP_WEAPON_LENGTH-1F)*Math.min(grow,fade);
     }
+    /** Spear extension during the follow-up blink sweep of EYE_BLINK_CLEAVE (step 1 starts at tick 24). */
+    public static float eyeBlinkWeaponLength(float age) {
+        if(!Float.isFinite(age) || age<24F)return 1F;
+        float local=age-24F,windup=EYE_BLINK_CLEAVE.stepWindup(1),active=EYE_BLINK_CLEAVE.stepActive(1);
+        float grow=Math.clamp(local/Math.max(1,windup),0,1);
+        float fade=1F-Math.clamp((local-(windup+active+3))/8F,0,1);
+        return 1F+(DIVINE_SWEEP_WEAPON_LENGTH-1F)*Math.min(grow,fade);
+    }
     public static boolean divineSweepTouches(double feet,double head,double ground) {
         if(!Double.isFinite(feet) || !Double.isFinite(head) || !Double.isFinite(ground))return false;
         double lower=ground+DIVINE_SWEEP_HEIGHT-DIVINE_SWEEP_HALF_BAND;
@@ -198,13 +214,15 @@ public enum YangJianSkill {
                          double healthRatio,int previousAction,int cooldownRemaining) {
         if(cooldownRemaining>0)return 0;
         double weight=switch(this) {
-            case COMBO -> distance<=5.3?40:distance<8?10:0;
-            case FOUR_COMBO -> distance<=5.4?29:0;
-            case SIX_COMBO -> distance<=5.5?(healthRatio<0.72?29:13):0;
-            case THROW -> distance>=7?(distance>13?42:25):0;
-            case THRUST -> distance>=4?(usingItem?70:marked?62:distance>10?40:19):0;
+            case COMBO -> distance<=5.3?36:distance<8?10:0;
+            case FOUR_COMBO -> distance<=5.4?26:0;
+            case SIX_COMBO -> distance<=5.5?(healthRatio<0.72?28:13):0;
+            case THROW -> distance>=7?(distance>13?40:24):0;
+            case THRUST -> distance>=4?(usingItem?68:marked?60:distance>10?38:18):0;
             case SUMMON_HOUND -> !houndAlive?(distance>5?32:13):0;
-            case COORDINATED -> houndAlive && distance<14?(marked?40:25):0;
+            case COORDINATED -> houndAlive && distance<14?(marked?40:24):0;
+            case VAULT_SLAM -> distance>=3.5 && distance<=13?(usingItem?34:distance>6?28:18):0;
+            case CLOUD_FEINT_THRUST -> distance<=9?(healthRatio<0.75?32:22):0;
             default -> 0;
         };
         return previousAction==action?weight*0.18:weight;
@@ -214,29 +232,33 @@ public enum YangJianSkill {
         if(phase()!=fightPhase || remaining>0)return 0;
         if(fightPhase==1)return weight(distance,usingItem,marked,houndAlive,healthRatio,previousAction,remaining);
         double value=switch(this) {
-            case AXE_SUMMON -> weapon!=1?(distance>=5?34:24):0;
-            case AXE_SLAM -> weapon==1 && distance<=18?(distance>5?38:22):0;
-            case AXE_COMBO -> weapon==1 && distance<=7?43:0;
-            case FLYING_SWORDS -> distance>=6?(distance>13?49:26):0;
-            case DRAW_SLASH -> distance<=8?(pressure || usingItem?52:29):0;
-            case WHIP_SWEEP -> distance>=4 && distance<=12?38:0;
-            case WHIP_SPIN -> distance<=10?(healthRatio<.5?31:22):0;
-            case LIGHTNING_THRUST -> distance>=5?(usingItem?60:distance>12?43:25):0;
-            case INVISIBLE_DASH -> distance>=3 && distance<=18?(pressure?42:17):0;
-            case DELAYED_COMBO -> distance<=7?(pressure?45:31):0;
+            case AXE_SUMMON -> weapon!=1?(distance>=5?32:22):0;
+            case AXE_SLAM -> weapon==1 && distance<=18?(distance>5?36:20):0;
+            case AXE_COMBO -> weapon==1 && distance<=7?40:0;
+            case AXE_DRAW_MIXUP -> distance<=10?(weapon==1 || pressure?42:25):0;
+            case FLYING_SWORDS -> distance>=6?(distance>13?46:24):0;
+            case DRAW_SLASH -> distance<=8?(pressure || usingItem?48:27):0;
+            case WHIP_SWEEP -> distance>=4 && distance<=12?34:0;
+            case WHIP_SPIN -> distance<=10?(healthRatio<.5?30:21):0;
+            case WHIP_LANCE_REEL -> distance>=4 && distance<=15?(usingItem?46:distance>8?36:24):0;
+            case LIGHTNING_THRUST -> distance>=5?(usingItem?56:distance>12?40:24):0;
+            case INVISIBLE_DASH -> distance>=3 && distance<=18?(pressure?40:16):0;
+            case DELAYED_COMBO -> distance<=7?(pressure?42:28):0;
             // P3 keeps only the thin fixed shot. The thick sustained beam (TRACKING_BEAM) is
             // the one that never sweeps: it only creeps toward the target at 0.7 degrees per
             // tick, so it reads as a stationary pillar of light, and it is out of the pool.
             // The enum, its timing and its animation stay so the pool can be re-enabled and
             // older saves keep mapping, but nothing selects it.
-            case EYE_BEAM -> distance>=4?(usingItem?50:28):9;
-            case SWEEP_BEAM -> distance>=6?30:13;
-            case MYRIAD_SWORDS -> distance>=7?(distance>14?39:29):16;
-            case SWORD_RAIN -> distance>=3?25:12;
-            case RED_THUNDER -> distance>=4?30:18;
-            case DIVINE_SWEEP -> distance<=12?(distance<6?40:24):0;
-            case AERIAL_COMBO -> distance>=5?24:12;
-            case DIVINE_JUDGEMENT -> healthRatio<=.85?48:18;
+            case EYE_BEAM -> distance>=4?(usingItem?48:26):9;
+            case SWEEP_BEAM -> distance>=6?28:12;
+            case MYRIAD_SWORDS -> distance>=7?(distance>14?36:26):15;
+            case SWORD_RAIN -> distance>=3?24:11;
+            case RED_THUNDER -> distance>=4?28:16;
+            case DIVINE_SWEEP -> distance<=12?(distance<6?38:22):0;
+            case AERIAL_COMBO -> distance>=5?22:11;
+            case DIVINE_JUDGEMENT -> healthRatio<=.85?46:18;
+            case EYE_BLINK_CLEAVE -> distance>=3.5 && distance<=20?(usingItem?46:distance>8?34:24):0;
+            case CRIMSON_SKY_PLUNGE -> distance>=4 && distance<=22?(distance>9?34:22):0;
             default -> 0;
         };
         return previousAction==action?0:value;

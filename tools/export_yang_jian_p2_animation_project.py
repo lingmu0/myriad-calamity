@@ -39,7 +39,7 @@ def weapon_for(name):
     if name.startswith('step_approach_'):return name.removeprefix('step_approach_')
     if name.startswith('axe_') or name=='p2_idle_axe':return 'axe'
     if name in ('flying_swords','draw_slash','invisible_dash','delayed_combo','p2_idle_sword'):return 'sword'
-    if name in ('whip_sweep','whip_spin','p2_idle_whip'):return 'whip'
+    if name in ('whip_sweep','whip_spin','whip_lance_reel','p2_idle_whip'):return 'whip'
     return 'spear'
 
 animations=[]
@@ -62,6 +62,8 @@ for name,clip in source.items():
         visible=weapon==weapon_for(name)
         values=[(0,int(visible))]
         if name=='axe_summon':values=[(0,weapon=='spear'),(1.2,weapon=='axe')]
+        if name=='axe_draw_mixup':values=[(0,weapon=='axe'),(0.95,weapon=='sword')]
+        if name=='whip_lance_reel':values=[(0,weapon=='whip'),(1.3,weapon=='spear')]
         if name=='throw' and weapon=='spear':values=[(0,True),(.8,False)]
         interpolation='step'
         if name=='transition':

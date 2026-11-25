@@ -12,11 +12,13 @@ SIDES = ('left', 'right')
 AIR_WINDOWS = {
     'step_approach': ((.5, 5.0, 1.),),
     'axe_slam': ((8, 28, 3),),
+    'vault_slam': ((4, 24, 2.5),),
     'transition': ((7, 72, 4),),
     'sweep_beam': ((6, 137, 4),),
     'tracking_beam': ((7, 78, 4),),
     'myriad_swords': ((7, 138, 5),),
     'aerial_combo': ((7, 130, 4),),
+    'crimson_sky_plunge': ((2, 40, 3),),
     'divine_judgement': ((7, 116, 5), (119, 304, 5)),
 }
 
@@ -42,23 +44,115 @@ def air_weight(name, tick):
 
 
 def pivot_step(name, tick, timing, side):
-    """Raise the unweighted foot during the turn and give the other a heel pivot."""
-    if name not in ('divine_sweep', 'divine_spin', 'whip_sweep', 'whip_spin'):
-        return 0., 0., 0.
-    hit, active = timing['hit_ticks'][0], timing['active_ticks']
-    t = (tick - hit) / active
-    if not 0 <= t <= 1:
-        return 0., 0., 0.
+    """Raise the unweighted foot during turns, combo lunges, iai steps, and thrust drives."""
     left = side == 'left'
-    # Shift the weight between feet. The short sweep uses one step; a full
-    # turn brings the rear foot around before it takes the load again.
-    start, end = ((.08, .54) if left else (.56, .97))
-    if name.endswith('sweep') and not left:
-        return 0., 2.4 * math.sin(math.pi * t), 0.
-    progress = min(1, max(0, (t - start) / (end - start)))
-    swing = math.sin(math.pi * progress)
-    lift = swing * (2.7 if left else 2.35)
-    return lift, -13 * swing, (-5.5 if left else 4.4) * swing
+    if name in ('divine_sweep', 'divine_spin', 'whip_sweep', 'whip_spin'):
+        hit, active = timing['hit_ticks'][0], timing['active_ticks']
+        t = (tick - hit) / active
+        if not 0 <= t <= 1:
+            return 0., 0., 0.
+        start, end = ((.08, .54) if left else (.56, .97))
+        if name.endswith('sweep') and not left:
+            return 0., 2.4 * math.sin(math.pi * t), 0.
+        progress = min(1, max(0, (t - start) / (end - start)))
+        swing = math.sin(math.pi * progress)
+        lift = swing * (2.7 if left else 2.35)
+        return lift, -13 * swing, (-5.5 if left else 4.4) * swing
+
+    if name == 'eye_blink_cleave':
+        t = (tick - 40.0) / 8.0
+        if 0 <= t <= 1:
+            if not left:
+                return 0., 2.2 * math.sin(math.pi * t), 0.
+            swing = math.sin(math.pi * min(1, max(0, (t - .06) / .65)))
+            return swing * 2.6, -12 * swing, -5.0 * swing
+        return 0., 0., 0.
+
+    if name == 'whip_lance_reel':
+        # Step 0: whip sweep pivot (tick 18..24); Step 1: lightning thrust push-off & brake (tick 42..50)
+        if 18 <= tick <= 24:
+            t = (tick - 18.0) / 6.0
+            if not left:
+                return 0., 2.2 * math.sin(math.pi * t), 0.
+            swing = math.sin(math.pi * min(1, max(0, (t - .05) / .65)))
+            return swing * 2.5, -12 * swing, -4.8 * swing
+        if 41.5 <= tick <= 49.5:
+            t = (tick - 41.5) / 8.0
+            if left:
+                # Front foot steps out into hard braking plant
+                s = math.sin(math.pi * min(1, max(0, t / .55)))
+                return s * 2.2, -10 * s, -4.6 * math.sin(math.pi * min(1, t))
+            s = math.sin(math.pi * min(1, max(0, (t - .10) / .70)))
+            return s * 2.6, 16 * s, 4.2 * s
+        return 0., 0., 0.
+
+    # Thrusts and dashes: rear leg pushes off with heel lift; lead leg drives forward into braking plant.
+    thrust_windows = {
+        'thrust': (0.0, 7.5),
+        'counter': (0.0, 6.5),
+        'lightning_thrust': (17.5, 25.5),
+        'invisible_dash': (29.5, 37.5),
+        'coordinated': (37.5, 44.5),
+        'cloud_feint_thrust': (32.5, 39.5),
+    }
+    if name in thrust_windows:
+        start, end = thrust_windows[name]
+        if start <= tick <= end:
+            t = (tick - start) / max(1e-4, end - start)
+            if left:
+                # Lead foot lifts sharply at launch, drives forward, and plants solidly on deceleration
+                s = math.sin(math.pi * min(1, max(0, t / .52)))
+                plant = math.sin(math.pi * min(1, max(0, (t - .45) / .55)))
+                return s * 2.35, -11 * s + 5 * plant, -4.4 * math.sin(math.pi * min(1, t))
+            else:
+                # Rear foot drives off toe and trails during surge, then gathers smoothly
+                s = math.sin(math.pi * min(1, max(0, (t - .08) / .72)))
+                return s * 2.75, 18 * s, 4.5 * s
+        return 0., 0., 0.
+
+    # Draw slash & axe-to-draw iai lunge: front foot steps decisively forward right into the cut
+    if name in ('draw_slash', 'axe_draw_mixup'):
+        cut_tick = 18.0 if name == 'draw_slash' else 37.0
+        if cut_tick - 3.0 <= tick <= cut_tick + 3.5:
+            t = (tick - (cut_tick - 3.0)) / 6.5
+            if left:
+                s = math.sin(math.pi * min(1, max(0, t / .58)))
+                return s * 2.4, -10 * s, -4.8 * math.sin(math.pi * min(1, t))
+            s = math.sin(math.pi * min(1, max(0, (t - .30) / .65)))
+            return s * 1.4, 10 * s, 2.8 * s
+        if name == 'axe_draw_mixup' and 11.5 <= tick <= 17.0:
+            t = (tick - 11.5) / 5.5
+            s = math.sin(math.pi * t)
+            return (s * 1.9, -8 * s, -3.2 * s) if left else (0., 3 * s, 1.5 * s)
+        return 0., 0., 0.
+
+    # Melee combos: dynamic martial stepping footwork on every beat (alternating lead foot & spin pivot!)
+    if name in ('combo', 'four_combo', 'six_combo', 'axe_combo', 'delayed_combo'):
+        hits = timing.get('hit_ticks', ())
+        active = timing.get('active_ticks', 3)
+        spin_steps = {'combo': {2}, 'four_combo': {2}, 'six_combo': {1, 2}}.get(name, set())
+        for idx, hit in enumerate(hits):
+            if idx in spin_steps:
+                if hit - 2.0 <= tick <= hit + active + 1.5:
+                    t = (tick - (hit - 2.0)) / (active + 3.5)
+                    start, end = ((.05, .52) if left else (.50, .96))
+                    p = min(1, max(0, (t - start) / (end - start)))
+                    s = math.sin(math.pi * p)
+                    return s * (2.5 if left else 2.2), -11 * s, (-4.2 if left else 3.8) * s
+            else:
+                if hit - 2.6 <= tick <= hit + active + 0.8:
+                    t = (tick - (hit - 2.6)) / (active + 3.4)
+                    step_left = (idx % 2 == 0)
+                    if left == step_left:
+                        s = math.sin(math.pi * min(1, max(0, t / .68)))
+                        return s * 1.95, -9 * s, (-3.4 if left else -2.8) * math.sin(math.pi * min(1, t))
+                    else:
+                        # Supporting rear foot heel-pivot into the strike
+                        s = math.sin(math.pi * t)
+                        return s * 0.45, 7 * s, 1.8 * s
+        return 0., 0., 0.
+
+    return 0., 0., 0.
 
 
 def frame(axis, back):
@@ -136,9 +230,9 @@ def refine_footwork(name, bones, ticks, loop, timing):
             lift, pitch, stride = pivot_step(name, tick, timing, side)
             if name == 'walk':
                 lift = 2.8 * max(0, sign * math.sin(tick * math.pi / 12))
-            width = float(np.clip(natural[0]*.55 + local[0]*.45, -11.5, 11.5))
+            width = float(np.clip(natural[0]*.52 + local[0]*.48, -12.0, 12.0))
             width = sign * max(5.2, sign * width)
-            reach = float(np.clip(local[2]*.62 + stride, -10.6, 9.5))
+            reach = float(np.clip(local[2]*.76 + stride, -11.4, 10.6))
             boot = facing @ rotation((pitch + foot[0]*.23, -sign*7 + foot[1]*.48, 0))
             target = root_position + facing @ np.array([width, 0., reach])
             target[1] = -.05 - np.max((sole @ boot.T)[:, 1]) - lift

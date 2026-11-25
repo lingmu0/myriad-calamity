@@ -109,3 +109,37 @@ def append_p3(pose,finish,attack_pose):
         left_arm=[24,0,19],right_arm=[29,0,-14],right_forearm=[-12,0,9])
     finish('p3_death',[frame(0,calm),frame(6,pose(chest=[-14,0,0],head=[-12,0,0]),-.6),
         frame(15,kneel,-7),frame(20,kneel,-7)],20)
+
+    # P3 Variation Skill 1: EYE_BLINK_CLEAVE (68 ticks: step0 eye beam hit=12..19, blink=22, step1 190° divine sweep hit=40..47, end=68)
+    blink_arc = 190
+    blink_ready = copy.deepcopy(sweep); blink_ready['root'] = [0, -blink_arc * .5, 0]
+    blink_frames = [
+        frame(0, calm), frame(7, beam_focus, -.25), frame(12, beam_focus, -.25),
+        frame(19, beam_focus, -.25), frame(22, pose(chest=[12, -16, 0], head=[-8, 16, 0], left_thigh=[30, 0, -7], right_thigh=[-24, 0, 7]), -.9),
+        frame(32, blink_ready, -.6), frame(40, blink_ready, -.6),
+    ]
+    for i in range(1, 9):
+        p = copy.deepcopy(sweep)
+        p['root'] = [0, -blink_arc * .5 + blink_arc * i / 8.0, 0]
+        reach = math.sin(i / 8.0 * math.pi)
+        p['left_arm'] = [34 + 24 * reach, -18 - 14 * reach, 28 + 12 * reach]
+        p['left_forearm'] = [-30 + 18 * reach, 6, CARRY_ANGLE]
+        p['left_hand'] = [-14 * reach, 6 * reach, 8 * reach]
+        blink_frames.append(frame(40 + i, p, -.6))
+    blink_end = copy.deepcopy(calm); blink_end['root'] = [0, 0, 0]
+    blink_frames += [frame(49.5, p, -.5), frame(68, blink_end)]
+    finish('eye_blink_cleave', blink_frames, 68, metadata={'step_start_ticks': [0, 24], 'hit_ticks': [12, 40], 'windup_ticks': [12, 16], 'active_ticks': 8, 'gap_ticks': 4})
+
+    # P3 Variation Skill 2: CRIMSON_SKY_PLUNGE (62 ticks: ascend 0..10, thunder cast 10 & 18, dive 34..40, recovery 40..62)
+    plunge_load = flying(attack_pose('overhead', True))
+    plunge_snap = flying(attack_pose('overhead', snap=True))
+    plunge_hit = attack_pose('overhead')
+    plunge_follow = attack_pose('overhead', follow=True)
+    finish('crimson_sky_plunge', [
+        frame(0, calm), frame(6, flight), frame(10, flying(cast)),
+        frame(15, flying(proclaim)), frame(18, flying(cast)),
+        frame(25, plunge_load), frame(32.5, plunge_load), frame(34, plunge_snap),
+        frame(40, plunge_hit, -1.3), frame(44, plunge_follow, -1.1),
+        frame(52, pose(hips=[6, 0, 0], chest=[6, 0, 0], left_thigh=[16, 0, -5], right_thigh=[-10, 0, 5]), -.4),
+        frame(62, calm),
+    ], 62, metadata={'hit_ticks': [34], 'windup_ticks': [34], 'active_ticks': 6})

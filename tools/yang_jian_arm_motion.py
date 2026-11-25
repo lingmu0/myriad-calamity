@@ -157,8 +157,8 @@ def natural_free_hand(values):
             flex = max(95, flex)
             a[0] = max(-85, a[0])
     a = np.clip(a, [-95, -50, -35], [35, 50, 55])
-    twist = np.clip(values[4] + 35 * (1 - raised), -45, 55)
-    hand = np.clip(np.asarray(values[6:]) * .30, [-25, -18, -18], [25, 18, 18])
+    twist = np.clip(values[4] + 32 * (1 - raised), -52, 60)
+    hand = np.clip(np.asarray(values[6:]) * .62, [-38, -22, -20], [38, 22, 20])
     return np.r_[a, flex, 8., twist, hand]
 
 

@@ -16,17 +16,16 @@ import net.xuwu.myriadcalamity.entity.CogworkDancer;
 import net.xuwu.myriadcalamity.entity.CombatMath;
 import org.joml.Matrix4f;
 
-/** Frozen, server-planned ground geometry, using the same filled warning style as Time's Keeper. */
+/** Frozen, server-planned ground telegraphs paired with world-space dancer combat VFX. */
 @EventBusSubscriber(modid=MyriadCalamity.ID, value=Dist.CLIENT)
 public final class CogworkTelegraph {
     private static final double GROUND_OFFSET=0.035;
     /**
-     * Warning alphas. The hard edge stroke is gone, so these fills carry all of the readability:
-     * a readable ground wash, a slightly brighter arena ring and a low wall that never hides an
-     * attack. Raise these together if the warnings ever read too faint again.
+     * Soft, borderless warning alphas: readable ground wash with subtle beat progression,
+     * paired with an ornate vertically-fading clockwork arena boundary.
      */
     private static final float FILL_ALPHA=.12F, FILL_CHARGE_ALPHA=.09F,
-        BOUNDARY_ALPHA=.42F, BOUNDARY_PULSE=.08F, WALL_ALPHA=.09F, WALL_PULSE=.03F;
+        BOUNDARY_ALPHA=.44F, BOUNDARY_PULSE=.08F, WALL_ALPHA=.13F, WALL_PULSE=.03F;
 
     @SubscribeEvent
     public static void renderLevel(RenderLevelStageEvent event) {
@@ -44,6 +43,7 @@ public final class CogworkTelegraph {
                 // One coordinator owns the ring in the pair; a phase-four survivor owns it alone.
                 if(!dancer.follower() || dancer.phase()==4)renderBoundary(dancer,partial,pose,buffers,camera);
                 render(dancer,partial,pose,buffers,camera);
+                CogworkCombatEffects.render(dancer,partial,pose,buffers,camera);
             }
         }
         CombatEffectRenderLayer.flush(buffers);
@@ -57,22 +57,49 @@ public final class CogworkTelegraph {
         VertexConsumer vertices=CombatEffectRenderLayer.buffer(buffers);
         Matrix4f matrix=pose.last().pose();
         int steps=128;
-        double radius=CombatMath.FIGHT_BOUNDARY_RADIUS, inner=radius-0.11, outer=radius+0.11;
-        int ground=color(BOUNDARY_ALPHA+BOUNDARY_PULSE*(float)Math.sin((dancer.tickCount+partial)*.16F),255,142,92);
-        int wall=color(WALL_ALPHA+WALL_PULSE*(float)Math.sin((dancer.tickCount+partial)*.12F),255,108,58);
+        float time=dancer.tickCount+partial;
+        double radius=CombatMath.FIGHT_BOUNDARY_RADIUS, inner=radius-0.12, outer=radius+0.12;
+        int ground=color(BOUNDARY_ALPHA+BOUNDARY_PULSE*(float)Math.sin(time*.16F),255,152,96);
+        int coreBand=color((BOUNDARY_ALPHA+0.12F)+BOUNDARY_PULSE*(float)Math.sin(time*.16F),255,214,158);
+        int wallBot=color(WALL_ALPHA+WALL_PULSE*(float)Math.sin(time*.12F),255,126,72);
+        int wallMid=color((WALL_ALPHA*0.42F),255,108,58);
+        int wallTop=color(0F,255,108,58);
         for(int i=0;i<steps;i++) {
             double a=i*Math.PI*2/steps,b=(i+1)*Math.PI*2/steps;
-            vertex(vertices,matrix,Math.cos(a)*inner,GROUND_OFFSET,Math.sin(a)*inner,ground);
-            vertex(vertices,matrix,Math.cos(a)*outer,GROUND_OFFSET,Math.sin(a)*outer,ground);
-            vertex(vertices,matrix,Math.cos(b)*outer,GROUND_OFFSET,Math.sin(b)*outer,ground);
-            vertex(vertices,matrix,Math.cos(b)*inner,GROUND_OFFSET,Math.sin(b)*inner,ground);
-            // A low-alpha wall makes the locked arena readable from every angle without hiding attacks.
-            if(i%2==0) {
-                vertex(vertices,matrix,Math.cos(a)*inner,0.02,Math.sin(a)*inner,wall);
-                vertex(vertices,matrix,Math.cos(a)*inner,3.1,Math.sin(a)*inner,wall);
-                vertex(vertices,matrix,Math.cos(b)*inner,3.1,Math.sin(b)*inner,wall);
-                vertex(vertices,matrix,Math.cos(b)*inner,0.02,Math.sin(b)*inner,wall);
-            }
+            double ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b);
+            // Main floor boundary ring
+            vertex(vertices,matrix,ca*inner,GROUND_OFFSET,sa*inner,ground);
+            vertex(vertices,matrix,ca*outer,GROUND_OFFSET,sa*outer,ground);
+            vertex(vertices,matrix,cb*outer,GROUND_OFFSET,sb*outer,ground);
+            vertex(vertices,matrix,cb*inner,GROUND_OFFSET,sb*inner,ground);
+            // Crisp inner golden filament line
+            double cIn=radius-0.032,cOut=radius+0.032;
+            vertex(vertices,matrix,ca*cIn,GROUND_OFFSET+0.008,sa*cIn,coreBand);
+            vertex(vertices,matrix,ca*cOut,GROUND_OFFSET+0.008,sa*cOut,coreBand);
+            vertex(vertices,matrix,cb*cOut,GROUND_OFFSET+0.008,sb*cOut,coreBand);
+            vertex(vertices,matrix,cb*cIn,GROUND_OFFSET+0.008,sb*cIn,coreBand);
+            // Smooth vertically-fading translucent energy barrier curtain
+            vertex(vertices,matrix,ca*inner,0.03,sa*inner,wallBot);
+            vertex(vertices,matrix,ca*inner,1.15,sa*inner,wallMid);
+            vertex(vertices,matrix,cb*inner,1.15,sb*inner,wallMid);
+            vertex(vertices,matrix,cb*inner,0.03,sb*inner,wallBot);
+
+            vertex(vertices,matrix,ca*inner,1.15,sa*inner,wallMid);
+            vertex(vertices,matrix,ca*inner,3.05,sa*inner,wallTop);
+            vertex(vertices,matrix,cb*inner,3.05,sb*inner,wallTop);
+            vertex(vertices,matrix,cb*inner,1.15,sb*inner,wallMid);
+        }
+        // Subtle rotating clockwork gear notches along the perimeter
+        int notches=24;
+        double spin=time*0.006;
+        int notchCol=color(0.32F+0.08F*(float)Math.sin(time*0.2F),255,212,148);
+        for(int i=0;i<notches;i++) {
+            double a=spin+i*Math.PI*2/notches,da=0.018;
+            double r0=outer+0.02,r1=outer+0.34;
+            vertex(vertices,matrix,Math.cos(a-da)*r0,GROUND_OFFSET+0.005,Math.sin(a-da)*r0,notchCol);
+            vertex(vertices,matrix,Math.cos(a-da*0.6)*r1,GROUND_OFFSET+0.005,Math.sin(a-da*0.6)*r1,notchCol);
+            vertex(vertices,matrix,Math.cos(a+da*0.6)*r1,GROUND_OFFSET+0.005,Math.sin(a+da*0.6)*r1,notchCol);
+            vertex(vertices,matrix,Math.cos(a+da)*r0,GROUND_OFFSET+0.005,Math.sin(a+da)*r0,notchCol);
         }
         pose.popPose();
     }
@@ -84,6 +111,7 @@ public final class CogworkTelegraph {
         if(age<0)return;
         int windup=dancer.attackWindup();
         Vec3 anchor=dancer.attackEnd();
+        boolean silver=dancer.follower();
         pose.pushPose();
         // Subtract in double precision before the GPU conversion, including far from world origin.
         pose.translate(anchor.x-camera.x,anchor.y-camera.y,anchor.z-camera.z);
@@ -99,20 +127,20 @@ public final class CogworkTelegraph {
                 if(age>=completed)continue;
                 float charge=Mth.clamp(1-(launch-age)/(float)windup,0,1);
                 var lane=lanes.get(pass);
-                lane(vertices,matrix,lane.start().subtract(anchor),lane.end().subtract(anchor),CombatMath.BARRAGE_LANE_RADIUS,charge,age);
+                lane(vertices,matrix,lane.start().subtract(anchor),lane.end().subtract(anchor),CombatMath.BARRAGE_LANE_RADIUS,charge,age,silver);
             }
         } else if(action==CogworkDancer.DASH && age<windup) {
-            lane(vertices,matrix,dancer.attackStart().subtract(anchor),Vec3.ZERO,1.35,Mth.clamp(age/windup,0,1),age);
+            lane(vertices,matrix,dancer.attackStart().subtract(anchor),Vec3.ZERO,1.35,Mth.clamp(age/windup,0,1),age,silver);
         } else if(action==CogworkDancer.SLAM && age<windup+8) {
             // Only the landing impact is warned here; the later ground wave is jumpable.
-            disk(vertices,matrix,Vec3.ZERO,CombatMath.SLAM_WARNING_RADIUS,Mth.clamp(age/(windup+8),0,1),age);
+            disk(vertices,matrix,Vec3.ZERO,CombatMath.SLAM_WARNING_RADIUS,Mth.clamp(age/(windup+8),0,1),age,silver);
         } else if(action==CogworkDancer.SPIN && age<windup+52) {
             // The paired duet warns the enlarged damaging ring through the active spin.
-            disk(vertices,matrix,Vec3.ZERO,CombatMath.DUET_RADIUS,Mth.clamp(age/(float)windup,0,1),age);
+            disk(vertices,matrix,Vec3.ZERO,CombatMath.DUET_RADIUS,Mth.clamp(age/(float)windup,0,1),age,silver);
         } else if(action==CogworkDancer.FAILED && dancer.phase()==4 && age<windup+52) {
             // The final survivor only reaches for its missing partner: this is a visual
             // range cue with no hitbox, followed by the failed-duet animation.
-            disk(vertices,matrix,Vec3.ZERO,CombatMath.DUET_RADIUS,Mth.clamp(age/(float)windup,0,1),age);
+            disk(vertices,matrix,Vec3.ZERO,CombatMath.DUET_RADIUS,Mth.clamp(age/(float)windup,0,1),age,silver);
         }
         pose.popPose();
         renderQueued(dancer,partial,pose,buffers,camera);
@@ -124,26 +152,27 @@ public final class CogworkTelegraph {
         float age=dancer.queuedActionAge(partial);
         int windup=dancer.queuedAttackWindup();
         if(age<0 || age>=windup)return;
-        // Phase-three plans are re-locked on the server at the exact warning tick.  Hide the
+        // Phase-three plans are re-locked on the server at the exact warning tick. Hide the
         // stale pre-lock geometry for that tick so the client never flashes a false circle.
         if(dancer.phase()==3 && (action==CogworkDancer.DASH || action==CogworkDancer.SLAM) && !dancer.queuedWarningLocked())return;
         Vec3 start=dancer.queuedStart(),end=dancer.queuedEnd();
+        boolean silver=dancer.follower();
         pose.pushPose();
         pose.translate(end.x-camera.x,end.y-camera.y,end.z-camera.z);
         VertexConsumer vertices=CombatEffectRenderLayer.buffer(buffers);
         Matrix4f matrix=pose.last().pose();
         if(action==CogworkDancer.DASH) {
-            lane(vertices,matrix,start.subtract(end),Vec3.ZERO,1.35,Mth.clamp(age/windup,0,1),age);
+            lane(vertices,matrix,start.subtract(end),Vec3.ZERO,1.35,Mth.clamp(age/windup,0,1),age,silver);
         } else if(action==CogworkDancer.SLAM) {
-            disk(vertices,matrix,Vec3.ZERO,CombatMath.SLAM_WARNING_RADIUS,Mth.clamp(age/(windup+8),0,1),age);
+            disk(vertices,matrix,Vec3.ZERO,CombatMath.SLAM_WARNING_RADIUS,Mth.clamp(age/(windup+8),0,1),age,silver);
         } else {
             // A queued spin is warned for either dancer, including the staggered phase-three mate.
-            disk(vertices,matrix,Vec3.ZERO,CombatMath.DUET_RADIUS,Mth.clamp(age/(float)windup,0,1),age);
+            disk(vertices,matrix,Vec3.ZERO,CombatMath.DUET_RADIUS,Mth.clamp(age/(float)windup,0,1),age,silver);
         }
         pose.popPose();
     }
 
-    private static void lane(VertexConsumer v,Matrix4f m,Vec3 start,Vec3 end,double radius,float charge,float age) {
+    private static void lane(VertexConsumer v,Matrix4f m,Vec3 start,Vec3 end,double radius,float charge,float age,boolean silver) {
         double angle=Math.atan2(end.z-start.z,end.x-start.x);
         int steps=12,points=2*(steps+1);
         double[] x=new double[points],z=new double[points];
@@ -153,21 +182,62 @@ public final class CogworkTelegraph {
             a=angle+Math.PI/2+i*Math.PI/steps;
             x[steps+1+i]=start.x+Math.cos(a)*radius;z[steps+1+i]=start.z+Math.sin(a)*radius;
         }
-        polygon(v,m,x,z,Math.min(start.y,end.y)+GROUND_OFFSET,charge,age);
+        double y=Math.min(start.y,end.y)+GROUND_OFFSET;
+        polygon(v,m,x,z,y,charge,silver);
+        // Soft directional beat chevrons gliding inside the borderless wash to signal charge direction & timing.
+        Vec3 route=end.subtract(start);
+        double length=route.horizontalDistance();
+        if(length>1.5) {
+            Vec3 dir=new Vec3(route.x/length,0,route.z/length);
+            Vec3 side=new Vec3(-dir.z,0,dir.x);
+            double flow=(charge*0.85+0.08);
+            int chevron=silver?color(0.08F+charge*0.11F,190,235,255):color(0.08F+charge*0.11F,255,204,132);
+            double cy=y+0.008;
+            for(int k=0;k<3;k++) {
+                double t=(flow+k*0.33)%1.0;
+                double dist=t*length;
+                Vec3 tip=new Vec3(start.x+dir.x*dist,cy,start.z+dir.z*dist);
+                Vec3 back=tip.subtract(dir.scale(Math.min(1.1,radius*0.8)));
+                double span=radius*0.62;
+                double thick=0.14;
+                for(int sgn:new int[]{-1,1}) {
+                    Vec3 wing=back.add(side.scale(sgn*span));
+                    Vec3 tipBack=tip.subtract(dir.scale(thick));
+                    Vec3 wingBack=wing.subtract(dir.scale(thick));
+                    vertex(v,m,tip.x,cy,tip.z,chevron);vertex(v,m,wing.x,cy,wing.z,chevron);
+                    vertex(v,m,wingBack.x,cy,wingBack.z,chevron);vertex(v,m,tipBack.x,cy,tipBack.z,chevron);
+                }
+            }
+        }
     }
 
-    private static void disk(VertexConsumer v,Matrix4f m,Vec3 center,double radius,float charge,float age) {
+    private static void disk(VertexConsumer v,Matrix4f m,Vec3 center,double radius,float charge,float age,boolean silver) {
         int steps=96;double[] x=new double[steps],z=new double[steps];
         for(int i=0;i<steps;i++) {
             double angle=i*Math.PI*2/steps;x[i]=center.x+Math.cos(angle)*radius;z[i]=center.z+Math.sin(angle)*radius;
         }
-        polygon(v,m,x,z,center.y+GROUND_OFFSET,charge,age);
+        double y=center.y+GROUND_OFFSET;
+        polygon(v,m,x,z,y,charge,silver);
+        // Soft inner expanding charge fill (borderless) so the exact release beat reads effortlessly.
+        double innerR=radius*charge;
+        if(innerR>0.12) {
+            int pulse=silver?color(0.05F+charge*0.07F,185,225,255):color(0.05F+charge*0.07F,255,186,112);
+            double iy=y+0.006;
+            for(int i=0;i<48;i++) {
+                double a=i*Math.PI/24,b=(i+1)*Math.PI/24;
+                vertex(v,m,center.x,iy,center.z,pulse);
+                vertex(v,m,center.x+Math.cos(a)*innerR,iy,center.z+Math.sin(a)*innerR,pulse);
+                vertex(v,m,center.x+Math.cos(b)*innerR,iy,center.z+Math.sin(b)*innerR,pulse);
+                vertex(v,m,center.x+Math.cos(b)*innerR,iy,center.z+Math.sin(b)*innerR,pulse);
+            }
+        }
     }
 
-    private static void polygon(VertexConsumer v,Matrix4f m,double[] x,double[] z,double y,float charge,float age) {
-        // A soft ground wash only. The hard edge stroke is gone, so the fill has to stay readable
-        // on its own without turning the floor into an opaque decal.
-        int fill=color(FILL_ALPHA+charge*FILL_CHARGE_ALPHA,255,112,72);
+    private static void polygon(VertexConsumer v,Matrix4f m,double[] x,double[] z,double y,float charge,boolean silver) {
+        // Soft borderless ground wash only, lightly tinted warm-amber vs silver-coral per twin.
+        int fill=silver
+            ? color(FILL_ALPHA+charge*FILL_CHARGE_ALPHA,235,122,126)
+            : color(FILL_ALPHA+charge*FILL_CHARGE_ALPHA,255,118,68);
         for(int i=1;i<x.length-1;i++) {
             vertex(v,m,x[0],y,z[0],fill);vertex(v,m,x[i],y,z[i],fill);
             vertex(v,m,x[i+1],y,z[i+1],fill);vertex(v,m,x[i+1],y,z[i+1],fill);

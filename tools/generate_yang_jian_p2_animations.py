@@ -5,7 +5,7 @@ files. Full clips use the exact YangJianSkill windup/active/recovery timeline.
 """
 import copy
 
-from generate_yang_jian_animations import CARRY_ANGLE
+from generate_yang_jian_animations import CARRY_ANGLE, thrust_poses
 
 import math
 
@@ -22,29 +22,28 @@ def append_p2(pose, finish, attack_pose):
             left_thigh=[-13 if loaded else 30,0,-6],right_thigh=[15 if loaded else -21,0,6],
             left_shin=[13 if loaded else -23,0,0],right_shin=[-12 if loaded else 22,0,0])
 
-    def broad(loaded=False,side=1):
-        p=attack_pose('horizontal',loaded,side=side)
-        p['left_arm']=[75,side*12,36]
-        p['left_forearm']=[-44,0,22]
-        p['right_hand']=[-110 if loaded else -135,side*8,side*13]
+    def broad(loaded=False,side=1,snap=False,follow=False):
+        p=attack_pose('horizontal',loaded,follow=follow,side=side,snap=snap)
+        p['left_arm']=[75 if not follow else 56,side*12,34]
+        p['left_forearm']=[-42,0,22]
+        p['right_hand']=[-104 if loaded else -120 if follow else -138,side*(16 if follow else 12),side*14]
         return p
 
     def sequence(name,windups,active,gap,recovery,kinds):
         frames=[];starts=[];hits=[];tick=0
         for i,(w,kind) in enumerate(zip(windups,kinds)):
             starts.append(tick);hits.append(tick+w)
-            if kind=='overhead':load,hit=axe(True),axe()
-            elif kind=='upward':load,hit=attack_pose('upward',True),attack_pose('upward')
-            else:load,hit=broad(True,1 if i%2==0 else -1),broad(False,1 if i%2==0 else -1)
+            side = 1 if i%2==0 else -1
+            if kind=='overhead':
+                load,snapped,hit,follow=axe(True),attack_pose('overhead',snap=True),axe(),attack_pose('overhead',follow=True)
+            elif kind=='upward':
+                load,snapped,hit,follow=attack_pose('upward',True),attack_pose('upward',snap=True),attack_pose('upward'),attack_pose('upward',follow=True)
+            else:
+                load,snapped,hit,follow=broad(True,side),broad(False,side,snap=True),broad(False,side),broad(False,side,follow=True)
             # The delayed final strike holds its loaded pose, avoiding an evenly paced combo.
-            held=tick+w*.48 if name=='delayed_combo' and i==2 else tick+w*.7
-            follow=copy.deepcopy(hit)
-            follow['hips'][1] *= 1.15
-            follow['chest'][1] *= .85
-            follow['right_forearm'][0] -= 9
-            follow['left_arm'][0] -= 12
-            frames += [frame(tick,pose()),frame(held,load,-.7),frame(tick+w-1.5,load,-.7),
-                       frame(tick+w,hit,-.6),frame(tick+w+active-.2,follow,-.36)]
+            held=tick+w*.46 if name=='delayed_combo' and i==2 else tick+w*.64
+            frames += [frame(tick,pose(),-.15),frame(held,load,-.82),frame(tick+w-1.4,snapped,-.88),
+                       frame(tick+w,hit,-.72),frame(tick+w+active-.2,follow,-.42)]
             tick+=w+active+gap
         duration=tick-gap+recovery
         frames.append(frame(duration,pose()))
@@ -186,12 +185,16 @@ def append_p2(pose, finish, attack_pose):
     release=pose(chest=[5,-7,0],head=[-3,8,0],left_arm=[91,8,6],left_forearm=[-2,0,-4],left_hand=[-82,0,0])
     finish('flying_swords',[frame(0,pose()),frame(13,cast,.1),frame(23,cast,.1),frame(24,release),frame(30,release),frame(43,pose())],43,
         metadata={'hit_ticks':[24],'windup_ticks':[24],'active_ticks':1})
-    sheathe=pose(hips=[4,-16,0],waist=[7,-15,0],chest=[9,-19,0],head=[-5,26,0],
-        right_arm=[46,-35,57],right_forearm=[-27,-16,35],right_hand=[-96,0,-61],
-        left_arm=[5,-23,9],left_forearm=[-9,0,4],left_thigh=[18,0,-5],right_thigh=[-17,0,5])
-    cut=broad(False);cut['right_hand']=[-142,24,14]
-    finish('draw_slash',[frame(0,pose()),frame(8,sheathe,-.55),frame(16.5,sheathe,-.55),frame(18,cut,-.3),
-        frame(20,cut,-.3),frame(40,pose())],40,metadata={'hit_ticks':[18],'windup_ticks':[18],'active_ticks':2})
+    sheathe=pose(hips=[8,-22,-2],waist=[9,-18,-2],chest=[11,-22,-3],neck=[-4,16,1],head=[-7,28,1],
+        right_arm=[44,-36,56],right_forearm=[-30,-16,35],right_hand=[-94,-10,-52],
+        left_arm=[12,-20,12],left_forearm=[-18,0,6],left_hand=[-14,10,-8],
+        left_thigh=[26,0,-7],right_thigh=[-22,0,7],left_shin=[-34,0,0],right_shin=[-26,0,0])
+    draw_snap=broad(False,1,snap=True)
+    cut=broad(False,1);cut['right_hand']=[-142,24,14];cut['hips'][1]=26;cut['chest'][1]=28
+    cut_follow=broad(False,1,follow=True);cut_follow['right_hand']=[-124,20,10]
+    finish('draw_slash',[frame(0,pose()),frame(8,sheathe,-.88),frame(15.6,sheathe,-.95),
+        frame(16.9,draw_snap,-.85),frame(18,cut,-.55),frame(21,cut_follow,-.38),frame(40,pose())],40,
+        metadata={'hit_ticks':[18],'windup_ticks':[18],'active_ticks':2})
 
     for name,windup,active,recovery,arc in [('whip_sweep',22,8,18,200),('whip_spin',28,12,24,360)]:
         ready=pose(hips=[5,0,0],waist=[5,0,0],chest=[7,0,0],head=[-9,0,0],
@@ -230,18 +233,67 @@ def append_p2(pose, finish, attack_pose):
         finish(name,frames,windup+active+recovery,metadata={'hit_ticks':[windup],'windup_ticks':[windup],
             'active_ticks':active,'arc_degrees':arc})
 
-    ready=pose(hips=[5,0,0],waist=[4,-12,0],chest=[7,-18,0],head=[-9,15,0],
-        right_arm=[60,-10,-10],right_forearm=[-18,0,9],right_hand=[-116,0,0],
-        left_arm=[65,20,25],left_forearm=[-25,0,-14],left_thigh=[24,0,-5],right_thigh=[-25,0,5])
-    thrust=pose(hips=[13,0,0],waist=[8,16,0],chest=[15,18,0],head=[-17,-22,0],
-        right_arm=[72,8,-4],right_forearm=[-8,0,2],right_hand=[-118,0,0],
-        left_arm=[35,-10,28],left_forearm=[-34,0,-17],left_thigh=[40,0,-5],right_thigh=[-39,0,5],
-        left_shin=[-21,0,0],right_shin=[29,0,0],right_foot=[-10,0,0])
-    finish('lightning_thrust',[frame(0,pose()),frame(11,ready,-.7),frame(16.5,ready,-.7),
-        frame(18,thrust,-1),frame(24,thrust,-1),frame(44,pose())],44,
+    ready, thrust, thrust_apex, thrust_brake = thrust_poses()
+    finish('lightning_thrust',[frame(0,pose()),frame(11,ready,-1.15),frame(16.5,ready,-1.25),
+        (18.2,thrust,[0,-.95,-.85]),(21.2,thrust_apex,[0,-1.05,-.95]),(24,thrust,[0,-.88,-.65]),
+        (28,thrust_brake,[0,-1.10,-.20]),frame(44,pose())],44,
         metadata={'hit_ticks':[18],'windup_ticks':[18],'active_ticks':6})
-    vanish=pose(chest=[12,-18,0],head=[-8,20,0],right_arm=[30,-22,-13],right_forearm=[-31,0,15],
-        right_hand=[-105,0,0],left_arm=[42,20,30],left_thigh=[35,0,-7],right_thigh=[-29,0,7])
-    finish('invisible_dash',[frame(0,pose()),frame(8,vanish,-.8),frame(17,vanish,-.8),frame(22,ready,-.6),
-        frame(28.5,ready,-.6),frame(30,thrust,-1),frame(36,thrust,-1),frame(58,pose())],58,
+    vanish=pose(hips=[12,-14,-3],waist=[9,-14,-2],chest=[14,-20,-3],head=[-10,22,1],
+        right_arm=[32,-22,-13],right_forearm=[-34,0,15],right_hand=[-105,0,0],
+        left_arm=[48,20,30],left_forearm=[-28,0,-16],left_thigh=[38,0,-7],right_thigh=[-30,0,7],
+        left_shin=[-42,0,0],right_shin=[-26,0,0])
+    finish('invisible_dash',[frame(0,pose()),frame(8,vanish,-1.05),frame(17,vanish,-1.05),frame(22,ready,-1.10),
+        frame(28.5,ready,-1.25),(30.2,thrust,[0,-.95,-.85]),(33.2,thrust_apex,[0,-1.05,-.95]),
+        (36,thrust,[0,-.88,-.65]),(40,thrust_brake,[0,-1.10,-.20]),frame(58,pose())],58,
         metadata={'hit_ticks':[30],'windup_ticks':[30],'active_ticks':6,'invisible_ticks':[8,18],'reveal_warning_ticks':12})
+
+    # P2 Variation Skill 1: AXE_DRAW_MIXUP (60 ticks: step0 axe cleave hit=14..16, swap=19, step1 sword draw hit=37..39, end=60)
+    axe_load = broad(True, 1)
+    axe_snap = broad(False, 1, snap=True)
+    axe_hit = broad(False, 1)
+    axe_follow = broad(False, 1, follow=True)
+    sword_cut = broad(False, -1); sword_cut['right_hand'] = [-142, -22, -14]; sword_cut['hips'][1] = -26; sword_cut['chest'][1] = -28
+    sword_follow = broad(False, -1, follow=True); sword_follow['right_hand'] = [-122, -18, -10]
+    finish('axe_draw_mixup', [
+        frame(0, pose()), frame(9.5, axe_load, -.85), frame(12.6, axe_snap, -.92),
+        frame(14, axe_hit, -.72), frame(17.5, axe_follow, -.45),
+        # Weapon swaps to sword at tick 19 -> drop straight into coiled iai sheathe crouch!
+        frame(23, sheathe, -.90), frame(34.5, sheathe, -1.02),
+        frame(35.8, broad(False, -1, snap=True), -.88), frame(37, sword_cut, -.58),
+        frame(40.5, sword_follow, -.38), frame(60, pose()),
+    ], 60, metadata={'step_start_ticks': [0, 21], 'hit_ticks': [14, 37], 'windup_ticks': [14, 16], 'active_ticks': 3, 'gap_ticks': 4})
+
+    # P2 Variation Skill 2: WHIP_LANCE_REEL (68 ticks: step0 190° whip lash hit=18..23, swap=26, step1 lightning thrust hit=42..47, end=68)
+    whip_arc = 190
+    whip_ready = pose(hips=[5, 0, 0], waist=[5, 0, 0], chest=[7, 0, 0], head=[-9, 0, 0],
+        right_arm=[60, -15, -28], right_forearm=[-18, 0, 21], right_hand=[-100, 0, -14],
+        left_arm=[35, 0, 33], left_forearm=[-38, 0, -18], left_thigh=[15, 0, -7], right_thigh=[-15, 0, 7])
+    whip_load = copy.deepcopy(whip_ready)
+    whip_load['root'] = [0, -whip_arc / 2, 0]
+    whip_load['right_arm'] = [72, -19, -40]; whip_load['right_forearm'] = [-30, 0, 21]; whip_load['right_hand'] = [-126, 0, -14]
+    whip_load['left_arm'] = [30, 0, 42]; whip_load['left_forearm'] = [-46, 0, -18]
+    whip_load['hips'][1] = -8; whip_load['waist'][1] = -8; whip_load['chest'][1] = -12
+    reel_frames = [frame(0, pose()), frame(10, whip_load, -.45), frame(18, whip_load, -.45)]
+    for i in range(1, 7):
+        s = i / 6.0
+        p = copy.deepcopy(whip_ready)
+        p['root'] = [0, -whip_arc / 2 + whip_arc * s, 0]
+        lash = math.sin(s * math.pi)
+        p['right_arm'] = [60 - 26 * lash, -15 + 10 * lash, -28 + 46 * lash]
+        p['right_forearm'] = [-18 + 17 * lash, 0, 21]
+        p['right_hand'] = [-100 - 36 * lash, 0, -14]
+        p['left_arm'] = [35 + 10 * lash, 0, 33 + 15 * lash]
+        p['left_forearm'] = [-38 + 11 * lash, 0, -18]
+        p['hips'][1] = 4 + 6 * math.sin(math.pi * s)
+        p['waist'][1] = 3 - 6 * math.cos(math.pi * s)
+        p['chest'][1] = 8 - 11 * math.cos(math.pi * s)
+        p['chest'][2] = math.sin(s * math.pi) * -5
+        reel_frames.append(frame(18 + i, p, -.45))
+    # Retract whip into spear bow-stance chamber (root unwinds cleanly back to 0) then unleash lightning thrust!
+    reel_frames += [
+        frame(28, ready, -1.05), frame(40.5, ready, -1.25),
+        (42.2, thrust, [0, -.95, -.85]), (45.2, thrust_apex, [0, -1.05, -.95]),
+        (48, thrust, [0, -.88, -.65]), (52, thrust_brake, [0, -1.10, -.20]),
+        frame(68, pose()),
+    ]
+    finish('whip_lance_reel', reel_frames, 68, metadata={'step_start_ticks': [0, 28], 'hit_ticks': [18, 42], 'windup_ticks': [18, 14], 'active_ticks': 6, 'gap_ticks': 4})
