@@ -40,38 +40,104 @@ def pose(**overrides):
     return p
 
 
-def attack_pose(kind, loaded=False, follow=False, side=1):
-    # Each strike is driven by the hips, then chest, shoulder, elbow and wrist.
+def attack_pose(kind, loaded=False, follow=False, side=1, snap=False):
+    # Full kinetic-chain poses: feet -> hips -> waist -> chest -> shoulder -> forearm -> wrist!
+    # `snap=True` fires ~1.4 ticks before impact: hips & waist uncoil early while chest & arm still stretch back.
     if kind == 'overhead':
-        # Two-handed: the free hand supports the weapon through the wind-up and the slam, so its
-        # motion matches the striking arm instead of gesturing on its own.
-        return pose(two_handed=True, hips=[-4 if loaded else 13,0,0], waist=[-9 if loaded else 17,0,0],
-            chest=[-12 if loaded else 21,0,0], neck=[8 if loaded else -12,0,0],
-            head=[6 if loaded else -10,0,0], right_arm=[134 if loaded else 50,-8,-12],
-            right_forearm=[-48 if loaded else -13,0,13], right_hand=[-105 if loaded else -126,0,0],
-            left_arm=[112 if loaded else 61,15,22], left_forearm=[-36 if loaded else -23,6,-22],
-            left_hand=[-26,0,0], left_thigh=[-18 if loaded else 31,0,-7],
-            right_thigh=[16 if loaded else -18,0,7], left_shin=[20 if loaded else -28,0,0],
-            right_shin=[-14 if loaded else 26,0,0], left_foot=[-6,0,0], right_foot=[-8,0,0])
+        if snap:
+            return pose(two_handed=True, hips=[10, 6, 0], waist=[6, 4, 0],
+                chest=[-4, 0, 0], neck=[4, 0, 0], head=[-2, 0, 0],
+                right_arm=[116, -6, -12], right_forearm=[-38, 0, 13], right_hand=[-94, 0, 4],
+                left_arm=[98, 14, 22], left_forearm=[-32, 6, -20], left_hand=[-20, 0, 0],
+                left_thigh=[16, 0, -8], right_thigh=[-6, 0, 8], left_shin=[-18, 0, 0],
+                right_shin=[12, 0, 0], left_foot=[-4, 0, 0], right_foot=[8, 0, 0])
+        if follow:
+            return pose(two_handed=True, hips=[16, 4, 0], waist=[20, 3, 0],
+                chest=[24, 2, 0], neck=[-14, 0, 0], head=[-12, 0, 0],
+                right_arm=[38, -6, -10], right_forearm=[-20, 0, 12], right_hand=[-132, 0, -4],
+                left_arm=[50, 14, 20], left_forearm=[-28, 6, -20], left_hand=[-28, 0, 0],
+                left_thigh=[36, 0, -8], right_thigh=[-22, 0, 8], left_shin=[-34, 0, 0],
+                right_shin=[28, 0, 0], left_foot=[-8, 0, 0], right_foot=[-10, 0, 0])
+        return pose(two_handed=True, hips=[-6 if loaded else 14, 0, 0], waist=[-11 if loaded else 18, 0, 0],
+            chest=[-15 if loaded else 22, 0, 0], neck=[10 if loaded else -13, 0, 0],
+            head=[8 if loaded else -11, 0, 0], right_arm=[138 if loaded else 48, -8, -13],
+            right_forearm=[-52 if loaded else -12, 0, 14], right_hand=[-100 if loaded else -128, 0, 0],
+            left_arm=[116 if loaded else 58, 16, 22], left_forearm=[-38 if loaded else -22, 6, -22],
+            left_hand=[-26, 0, 0], left_thigh=[-22 if loaded else 34, 0, -8],
+            right_thigh=[20 if loaded else -20, 0, 8], left_shin=[22 if loaded else -32, 0, 0],
+            right_shin=[-16 if loaded else 28, 0, 0], left_foot=[-6, 0, 0], right_foot=[-8, 0, 0])
     if kind == 'upward':
-        return pose(hips=[12 if loaded else -3,-20 if loaded else 22,0],
-            waist=[9 if loaded else -8,-24 if loaded else 25,0], chest=[7 if loaded else -12,-30 if loaded else 24,-7],
-            neck=[-5,9 if loaded else -14,0], head=[-7,18 if loaded else -22,0],
-            right_arm=[25 if loaded else 118,-25 if loaded else 20,-25 if loaded else -11],
-            right_forearm=[-10 if loaded else -20,0,26], right_hand=[-103 if loaded else -121,0,16],
-            left_arm=[17 if loaded else 70,15,28], left_forearm=[-18,0,-16],
-            left_thigh=[27 if loaded else 8,0,-5], right_thigh=[-20 if loaded else -9,0,5],
-            left_shin=[-20 if loaded else -5,0,0], right_shin=[22 if loaded else 9,0,0])
-    angle = (-1 if loaded else 1)*side
-    return pose(hips=[7,angle*(20 if follow else 15),angle*2],
-        waist=[4,angle*(14 if follow else 16),-angle*3], chest=[3,angle*(18 if follow else 21),-angle*4],
-        neck=[0,-angle*11,0], head=[-3,-angle*18,0],
-        right_arm=[53 if loaded else 65 if follow else 77,angle*(25 if follow else 19),-25 if loaded else 5],
-        right_forearm=[-32 if loaded else -21 if follow else -9,angle*9,24 if loaded else -7],
-        right_hand=[-109 if loaded else -121 if follow else -135,angle*12,angle*13],
-        left_arm=[23 if loaded else 43 if follow else 54,-angle*15,23], left_forearm=[-29,0,-17], left_hand=[0,0,-8],
-        left_thigh=[angle*19,0,-8], right_thigh=[-angle*19,0,8],
-        left_shin=[-angle*10,0,0], right_shin=[angle*10,0,0], left_foot=[0,-angle*8,0], right_foot=[0,angle*8,0])
+        if snap:
+            return pose(hips=[6, 12, -2], waist=[3, 4, -2], chest=[4, -14, -5],
+                neck=[-4, 6, 0], head=[-6, 12, 0],
+                right_arm=[48, -14, -22], right_forearm=[-22, 0, 22], right_hand=[-96, -8, 12],
+                left_arm=[34, 10, 26], left_forearm=[-22, 0, -16], left_hand=[-12, 8, -8],
+                left_thigh=[22, 0, -6], right_thigh=[-14, 0, 6],
+                left_shin=[-18, 0, 0], right_shin=[18, 0, 0])
+        if follow:
+            return pose(hips=[-5, 28, 2], waist=[-10, 28, 2], chest=[-14, 26, -6],
+                neck=[6, -18, 0], head=[4, -26, 0],
+                right_arm=[126, 26, -8], right_forearm=[-26, 0, 22], right_hand=[-126, 14, 18],
+                left_arm=[76, -12, 32], left_forearm=[-28, 0, -18], left_hand=[-18, -10, 10],
+                left_thigh=[4, 0, -6], right_thigh=[-6, 0, 6],
+                left_shin=[-4, 0, 0], right_shin=[8, 0, 0])
+        return pose(hips=[14 if loaded else -4, -24 if loaded else 24, -2 if loaded else 2],
+            waist=[10 if loaded else -9, -26 if loaded else 26, 0],
+            chest=[8 if loaded else -13, -32 if loaded else 26, -8],
+            neck=[-6, 11 if loaded else -16, 0], head=[-8, 20 if loaded else -24, 0],
+            right_arm=[22 if loaded else 120, -28 if loaded else 22, -28 if loaded else -10],
+            right_forearm=[-14 if loaded else -18, 0, 26],
+            right_hand=[-98 if loaded else -124, -10 if loaded else 12, 14 if loaded else 18],
+            left_arm=[14 if loaded else 72, 18 if loaded else -10, 30],
+            left_forearm=[-20 if loaded else -24, 0, -16], left_hand=[-10 if loaded else -22, 8, -10],
+            left_thigh=[30 if loaded else 6, 0, -6], right_thigh=[-22 if loaded else -8, 0, 6],
+            left_shin=[-24 if loaded else -5, 0, 0], right_shin=[24 if loaded else 10, 0, 0])
+    angle = (-1 if loaded else 1) * side
+    if snap:
+        return pose(hips=[9, side * 12, side * 3], waist=[5, side * 5, -side * 2],
+            chest=[4, -side * 12, -side * 4], neck=[-1, side * 8, 0], head=[-4, side * 14, 0],
+            right_arm=[60, -side * 16, -24], right_forearm=[-36, -side * 6, 20],
+            right_hand=[-102, -side * 14, -side * 10],
+            left_arm=[36, side * 10, 26], left_forearm=[-30, 0, -18], left_hand=[-16, side * 10, -10],
+            left_thigh=[side * 22, 0, -8], right_thigh=[-side * 20, 0, 8],
+            left_shin=[-side * 14, 0, 0], right_shin=[side * 14, 0, 0],
+            left_foot=[0, -side * 8, 0], right_foot=[0, side * 8, 0])
+    return pose(hips=[8, angle * (24 if follow else 18), angle * 3],
+        waist=[5, angle * (16 if follow else 18), -angle * 3],
+        chest=[4, angle * (22 if follow else 24), -angle * 5],
+        neck=[-1, -angle * 13, 0], head=[-4, -angle * 21, 0],
+        right_arm=[50 if loaded else 64 if follow else 79, angle * (28 if follow else 22), -28 if loaded else 8],
+        right_forearm=[-36 if loaded else -24 if follow else -8, angle * 11, 24 if loaded else -7],
+        right_hand=[-104 if loaded else -120 if follow else -138, angle * (18 if follow else 14), angle * (16 if follow else 14)],
+        left_arm=[26 if loaded else 40 if follow else 58, -angle * 18, 26],
+        left_forearm=[-32 if loaded else -26, 0, -18],
+        left_hand=[-14 if loaded else -24 if follow else -20, -angle * 12, -10],
+        left_thigh=[angle * 24, 0, -8], right_thigh=[-angle * 22, 0, 8],
+        left_shin=[-angle * 14, 0, 0], right_shin=[angle * 14, 0, 0],
+        left_foot=[0, -angle * 10, 0], right_foot=[0, angle * 10, 0])
+
+
+def thrust_poses():
+    """Shared martial spear-lunge sequence: hip-coiled chamber -> explosive surge -> braking plant."""
+    coil = pose(hips=[8, -18, -2], waist=[6, -15, -2], chest=[9, -18, -3], neck=[-4, 14, 1], head=[-9, 22, 1],
+        right_arm=[56, -18, 12], right_forearm=[-36, 0, -CARRY_ANGLE], right_hand=[-112, -10, -8],
+        left_arm=[76, 18, 14], left_forearm=[-22, 0, CARRY_ANGLE], left_hand=[-16, 12, -10],
+        left_thigh=[34, 0, -7], right_thigh=[-28, 0, 7], left_shin=[-40, 0, 0], right_shin=[-34, 0, 0],
+        left_foot=[10, 0, 0], right_foot=[16, 0, 0])
+    surge = pose(hips=[16, 18, 2], waist=[11, 14, 2], chest=[16, 16, 3], neck=[-6, -12, -1], head=[-15, -20, -1],
+        right_arm=[80, 14, -6], right_forearm=[-7, 0, -CARRY_ANGLE], right_hand=[-126, 8, 6],
+        left_arm=[-14, -18, 34], left_forearm=[-36, 0, CARRY_ANGLE], left_hand=[-18, -12, 10],
+        left_thigh=[48, 0, -6], right_thigh=[-46, 0, 6], left_shin=[-26, 0, 0], right_shin=[-18, 0, 0],
+        left_foot=[-12, 0, 0], right_foot=[26, 0, 0])
+    apex = copy.deepcopy(surge)
+    apex['hips'][1] = 24; apex['chest'][0] = -18; apex['right_arm'][0] = 86; apex['right_hand'][0] = -132
+    apex['left_arm'] = [-22, -22, 38]
+    brake = pose(hips=[10, 10, 1], waist=[7, 6, 1], chest=[10, 8, 1], neck=[-4, -6, 0], head=[-8, -10, 0],
+        right_arm=[54, 4, 4], right_forearm=[-28, 0, -CARRY_ANGLE], right_hand=[-114, 4, 2],
+        left_arm=[32, 6, 22], left_forearm=[-30, 0, CARRY_ANGLE], left_hand=[-12, 4, -6],
+        left_thigh=[36, 0, -7], right_thigh=[-22, 0, 7], left_shin=[-42, 0, 0], right_shin=[-28, 0, 0],
+        left_foot=[12, 0, 0], right_foot=[12, 0, 0])
+    return coil, surge, apex, brake
 
 
 def curves(frames, length, loop=False):
@@ -128,6 +194,10 @@ def finish(name, frames, ticks, loop=False, metadata=None):
     if name in ('divine_sweep','divine_spin'):
         for key in bones['root']['rotation']:
             if 20 <= key['time']*20 <= 30:
+                key['mode']='linear'
+    if name == 'eye_blink_cleave':
+        for key in bones['root']['rotation']:
+            if 40 <= key['time']*20 <= 48:
                 key['mode']='linear'
     # Bounded smooth curves prevent the wrist recoiling past its authored joint
     # limits. Store the bake as editable linear keys too: Blockbench has no PCHIP.
@@ -216,27 +286,33 @@ def combos(name, windups, gap, recovery, kinds):
     for i,(windup,kind) in enumerate(zip(windups,kinds)):
         starts.append(tick); hits.append(tick+windup)
         side = 1 if i%2==0 else -1
-        ready = pose(chest=[2,-side*9,0],left_thigh=[8,0,-4],right_thigh=[-7,0,4])
+        ready = pose(hips=[3,-side*7,0],chest=[3,-side*10,0],left_thigh=[10,0,-5],right_thigh=[-9,0,5])
         loaded = attack_pose(kind, True, side=side)
+        snapped = attack_pose(kind, side=side, snap=True)
         hit = attack_pose(kind, side=side)
         follow = attack_pose(kind, follow=True, side=side)
-        for p in (ready,loaded,hit,follow):
+        for p in (ready,loaded,snapped,hit,follow):
             p['root']=[0,turns,0]
         if kind == 'spin':
             # One clockwise turn. The model is rendered mirrored, so the clockwise look is
             # authored here as increasing yaw; the world-space sweeps reach it the other way.
             loaded['root'][1] = turns+29
-            hit['root'][1] = turns+122
-            follow['root'][1] = turns+290
+            snapped['root'][1] = turns+64
+            hit['root'][1] = turns+128
+            follow['root'][1] = turns+292
             finish_turn = copy.deepcopy(follow)
             finish_turn['root'][1] = turns+360
             turns += 360
-        crouch = -.9 if kind=='overhead' else -.4
-        frames += [(tick,ready,[0,0,0]),(tick+windup*.66,loaded,[0,crouch,0]),
-                   (tick+windup-1.5,loaded,[0,crouch,0]),(tick+windup,hit,[0,-.4,-.25]),
-                   (tick+windup+2,follow,[0,-.25,-.15])]
+        crouch = -1.15 if kind=='overhead' else -.55
+        load_t = tick + windup * .62
+        snap_t = tick + windup - 1.4
+        frames += [(tick,ready,[0,-.15,0]),
+                   (load_t,loaded,[0,crouch,0]),
+                   (snap_t,snapped,[0,crouch-.12,-.10]),
+                   (tick+windup,hit,[0,-.55,-.35]),
+                   (tick+windup+2.1,follow,[0,-.32,-.20])]
         if kind == 'spin':
-            frames.append((tick+windup+3,finish_turn,[0,-.20,0]))
+            frames.append((tick+windup+3,finish_turn,[0,-.22,0]))
         tick += windup+3+gap
     end=pose();end['root']=[0,turns,0]
     duration=tick-gap+recovery
@@ -264,16 +340,13 @@ def main():
     combos('four_combo',[7,5,7,16],2,16,['horizontal','horizontal','spin','overhead'])
     combos('six_combo',[7,5,15,5,7,18],2,20,['upward','spin','spin','horizontal','upward','overhead'])
 
-    ready=pose(hips=[5,0,0],waist=[4,-12,0],chest=[7,-18,0],head=[-9,15,0],
-        right_arm=[60,-10,8],right_forearm=[-18,0,-CARRY_ANGLE],right_hand=[-116,0,0],
-        left_arm=[65,12,8],left_forearm=[-25,0,CARRY_ANGLE],left_thigh=[24,0,-5],right_thigh=[-25,0,5],right_shin=[18,0,0])
-    thrust=pose(hips=[13,0,0],waist=[8,16,0],chest=[15,18,0],head=[-17,-22,0],
-        right_arm=[72,8,-4],right_forearm=[-8,0,2],right_hand=[-118,0,0],
-        left_arm=[35,-10,28],left_forearm=[-34,0,-17],left_thigh=[40,0,-5],right_thigh=[-39,0,5],
-        left_shin=[-21,0,0],right_shin=[29,0,0],right_foot=[-10,0,0])
+    ready, thrust, thrust_apex, thrust_brake = thrust_poses()
     # Normalized windup and active pieces are time-scaled to the current server plan.
-    finish('thrust_windup',[(0,pose(),[0,0,0]),(13,ready,[0,-.7,0]),(20,ready,[0,-.7,0])],20)
-    finish('thrust',[(0,ready,[0,-.7,0]),(2,thrust,[0,-1,-.8]),(6,thrust,[0,-1,-.8]),(17,pose(),[0,0,0])],17)
+    finish('thrust_windup',[(0,pose(),[0,0,0]),(6,pose(hips=[4,-10,0],chest=[5,-11,0],left_thigh=[16,0,-5],right_thigh=[-14,0,5]),[0,-.45,0]),
+        (14,ready,[0,-1.15,0]),(20,ready,[0,-1.25,0])],20)
+    finish('thrust',[(0,ready,[0,-1.2,0]),(1.4,thrust,[0,-.95,-.85]),(3.8,thrust_apex,[0,-1.05,-.95]),
+        (6.0,thrust,[0,-.90,-.70]),(9.0,thrust_brake,[0,-1.15,-.25]),(13.0,pose(hips=[3,3,0],chest=[3,3,0]),[0,-.35,0]),
+        (17,pose(),[0,0,0])],17)
     throw_load=pose(hips=[-5,18,0],waist=[-7,25,0],chest=[-8,20,-5],head=[3,-32,0],
         right_arm=[132,-25,-18],right_forearm=[-33,0,24],right_hand=[-95,0,4],
         left_arm=[58,5,27],left_forearm=[-11,0,-18],left_thigh=[18,0,-4],right_thigh=[-11,0,4])
@@ -290,16 +363,54 @@ def main():
     summon=pose(chest=[-3,8,0],head=[5,-9,0],left_arm=[72,15,16],left_forearm=[-10,0,CARRY_ANGLE],left_hand=[-30,0,12],
         right_arm=[-3,-10,-7],right_forearm=[-10,0,-18])
     finish('summon_hound',[(0,pose(),[0,0,0]),(10,summon,[0,.3,0]),(22,summon,[0,.3,0]),(36,pose(),[0,0,0])],36)
-    finish('coordinated',[(0,pose(),[0,0,0]),(8,attack_pose('horizontal',True),[0,-.4,0]),
-        (12,attack_pose('horizontal'),[0,-.4,-.2]),(22,ready,[0,-.6,0]),(36,ready,[0,-.6,0]),
-        (38,thrust,[0,-1,-.7]),(43,thrust,[0,-1,-.7]),(61,pose(),[0,0,0])],61)
+    finish('coordinated',[(0,pose(),[0,0,0]),(8,attack_pose('horizontal',True),[0,-.55,0]),
+        (10.6,attack_pose('horizontal',snap=True),[0,-.60,-.1]),
+        (12,attack_pose('horizontal'),[0,-.50,-.25]),(23,ready,[0,-1.05,0]),(36,ready,[0,-1.20,0]),
+        (37.6,thrust,[0,-.95,-.80]),(40.5,thrust_apex,[0,-1.05,-.90]),(43,thrust,[0,-.85,-.65]),
+        (47,thrust_brake,[0,-1.05,-.20]),(61,pose(),[0,0,0])],61)
     guard=pose(hips=[2,12,0],waist=[0,10,0],chest=[-3,14,0],neck=[0,-12,0],head=[0,-14,0],
         right_arm=[76,12,8],right_forearm=[-43,0,-CARRY_ANGLE],right_hand=[-34,0,-52],
         left_arm=[69,-8,14],left_forearm=[-30,0,CARRY_ANGLE],left_hand=[-6,0,-15],
         left_thigh=[14,0,-5],right_thigh=[-13,0,5],right_shin=[10,0,0])
     finish('guard',[(0,pose(),[0,0,0]),(3,guard,[0,-.55,0]),(20,guard,[0,-.55,0])],20)
-    finish('counter_windup',[(0,guard,[0,-.5,0]),(9,ready,[0,-.7,0]),(20,ready,[0,-.7,0])],20)
-    finish('counter',[(0,ready,[0,-.7,0]),(1.5,thrust,[0,-1,-.7]),(6,thrust,[0,-1,-.7]),(16,pose(),[0,0,0])],16)
+    finish('counter_windup',[(0,guard,[0,-.55,0]),(9,ready,[0,-1.15,0]),(20,ready,[0,-1.25,0])],20)
+    finish('counter',[(0,ready,[0,-1.20,0]),(1.3,thrust,[0,-.95,-.85]),(3.5,thrust_apex,[0,-1.05,-.95]),
+        (5.5,thrust,[0,-.90,-.65]),(8.5,thrust_brake,[0,-1.10,-.20]),(16,pose(),[0,0,0])],16)
+    # P1 Variation Skill 1: VAULT_SLAM (45 ticks: 24 windup + 3 active + 18 recovery)
+    vault_crouch = pose(hips=[14, -8, 0], waist=[10, -6, 0], chest=[14, -8, 0], head=[-12, 8, 0],
+        right_arm=[48, -14, 8], right_forearm=[-36, 0, -CARRY_ANGLE], right_hand=[-108, 0, 0],
+        left_arm=[42, 12, 22], left_forearm=[-28, 0, CARRY_ANGLE],
+        left_thigh=[36, 0, -7], right_thigh=[24, 0, 7], left_shin=[-52, 0, 0], right_shin=[-44, 0, 0])
+    vault_air = attack_pose('overhead', loaded=True)
+    vault_air['left_thigh'] = [42, 0, -9]; vault_air['right_thigh'] = [28, 0, 9]
+    vault_air['left_shin'] = [-66, 0, 0]; vault_air['right_shin'] = [-56, 0, 0]
+    vault_dive = attack_pose('overhead', snap=True)
+    vault_dive['left_thigh'] = [32, 0, -8]; vault_dive['right_thigh'] = [-12, 0, 8]
+    vault_slam_hit = attack_pose('overhead')
+    vault_slam_follow = attack_pose('overhead', follow=True)
+    finish('vault_slam', [
+        (0, pose(), [0, 0, 0]), (4, vault_crouch, [0, -1.35, 0]), (11, vault_air, [0, 0.2, 0]),
+        (19, vault_air, [0, 0.3, 0]), (22.5, vault_dive, [0, -0.2, 0]),
+        (24, vault_slam_hit, [0, -1.35, -0.3]), (27, vault_slam_follow, [0, -1.25, -0.2]),
+        (34, pose(hips=[8, 0, 0], chest=[8, 0, 0], left_thigh=[20, 0, -6], right_thigh=[-14, 0, 6]), [0, -0.5, 0]),
+        (45, pose(), [0, 0, 0]),
+    ], 45, metadata={'hit_ticks': [24], 'windup_ticks': [24], 'active_ticks': 3})
+    # P1 Variation Skill 2: CLOUD_FEINT_THRUST (56 ticks: step0 hit=9..13, sidestep=14..18, step1 hit=33..37, end=56)
+    sidestep = pose(hips=[11, -14, -7], waist=[8, -10, -5], chest=[12, -12, -7], neck=[-4, 8, 3], head=[-10, 14, 4],
+        right_arm=[42, -16, 14], right_forearm=[-34, 0, -CARRY_ANGLE], right_hand=[-108, -8, -6],
+        left_arm=[62, 16, 20], left_forearm=[-28, 0, CARRY_ANGLE], left_hand=[-20, 10, -8],
+        left_thigh=[44, 0, -10], right_thigh=[-34, 0, 10], left_shin=[-42, 0, 0], right_shin=[-26, 0, 0])
+    finish('cloud_feint_thrust', [
+        (0, pose(), [0, 0, 0]), (5.5, attack_pose('horizontal', True, side=1), [0, -0.55, 0]),
+        (7.6, attack_pose('horizontal', side=1, snap=True), [0, -0.62, -0.1]),
+        (9, attack_pose('horizontal', side=1), [0, -0.52, -0.25]),
+        (12.5, attack_pose('horizontal', follow=True, side=1), [0, -0.35, -0.15]),
+        (15.5, sidestep, [0, -0.85, 0]), (18, sidestep, [0, -0.70, 0]),
+        (26, ready, [0, -1.15, 0]), (31.5, ready, [0, -1.25, 0]),
+        (33.2, thrust, [0, -0.95, -0.85]), (35.8, thrust_apex, [0, -1.05, -0.95]),
+        (38, thrust, [0, -0.88, -0.65]), (42, thrust_brake, [0, -1.12, -0.20]),
+        (56, pose(), [0, 0, 0]),
+    ], 56, metadata={'step_start_ticks': [0, 18], 'hit_ticks': [9, 33], 'windup_ticks': [9, 15], 'active_ticks': 5, 'gap_ticks': 4})
     kneel=pose(hips=[12,0,0],waist=[9,0,0],chest=[12,0,0],neck=[9,0,0],head=[10,0,0],
         left_thigh=[44,0,-7],right_thigh=[-49,0,7],left_shin=[-68,0,0],right_shin=[-60,0,0],
         right_arm=[38,0,8],right_forearm=[-8,0,-CARRY_ANGLE],right_hand=[-28,0,0],

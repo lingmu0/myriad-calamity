@@ -40,7 +40,7 @@ for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_tal
         if namespace==NS:check((RES/f'assets/{NS}/textures/{relative}.png').exists(),f'Model texture: {texture}')
 for png in RES.rglob('*.png'):
     dimensions=read_png(png)
-    expected = {'yang_jian.png': (2048,2048), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
+    expected = {'yang_jian.png': (2048,2048), 'cogwork_dancer.png': (1024,1024), 'cogwork_dancer_silver.png': (1024,1024), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
     default_dimensions = {'entity': (256,256), 'item': (16,16), 'effect': (1,1)}
     check(dimensions==expected.get(png.name, default_dimensions.get(png.parent.name,(32,32))),f'Texture dimensions: {png}')
 recipe=jsons[f'data/{NS}/recipe/winding_key.json']
@@ -128,7 +128,7 @@ with zipfile.ZipFile(jars[0]) as jar:
     names=set(jar.namelist())
     for p in RES.rglob('*'):
         if p.is_file():check(p.relative_to(RES).as_posix() in names and jar.read(p.relative_to(RES).as_posix())==p.read_bytes(),f'Current packaged resource {p.name}')
-    for name in ['MyriadCalamity','entity/CogworkDancer','entity/CombatMath','client/ClientEvents','client/CogworkDancerModel','client/CogworkDancerRenderer','item/WindingKeyItem','client/AnimationTrack','client/AnimationPlayback','client/CogworkTelegraph','client/CombatEffectRenderLayer','client/ShaderPackSupport','entity/CogworkBlade','client/CogworkBladeRenderer','block/DanceAltarBlock','world/ModStructures','world/CogworkTheatreStructure','world/CogworkTheatrePiece','world/DanceEncounters','world/TheatreLayout','config/MyriadConfig']:
+    for name in ['MyriadCalamity','entity/CogworkDancer','entity/CombatMath','client/ClientEvents','client/CogworkDancerModel','client/CogworkDancerRenderer','client/CogworkCombatEffects','item/WindingKeyItem','client/AnimationTrack','client/AnimationPlayback','client/CogworkTelegraph','client/CombatEffectRenderLayer','client/ShaderPackSupport','entity/CogworkBlade','client/CogworkBladeRenderer','block/DanceAltarBlock','world/ModStructures','world/CogworkTheatreStructure','world/CogworkTheatrePiece','world/DanceEncounters','world/TheatreLayout','config/MyriadConfig']:
         entry=f'net/xuwu/myriadcalamity/{name}.class'
         check(entry in names,f'Packaged class {name}')
         check(struct.unpack('>H',jar.read(entry)[6:8])[0]==69,f'Java 25 class {name}')

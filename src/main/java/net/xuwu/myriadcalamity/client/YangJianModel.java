@@ -188,6 +188,12 @@ public final class YangJianModel {
                 case YangJian.DIVINE_SWEEP -> boss.telegraphAngle()>300?"divine_spin":"divine_sweep";
                 case YangJian.AERIAL_COMBO -> "aerial_combo";
                 case YangJian.DIVINE_JUDGEMENT -> "divine_judgement";
+                case YangJian.VAULT_SLAM -> "vault_slam";
+                case YangJian.CLOUD_FEINT_THRUST -> "cloud_feint_thrust";
+                case YangJian.AXE_DRAW_MIXUP -> "axe_draw_mixup";
+                case YangJian.WHIP_LANCE_REEL -> "whip_lance_reel";
+                case YangJian.EYE_BLINK_CLEAVE -> "eye_blink_cleave";
+                case YangJian.CRIMSON_SKY_PLUNGE -> "crimson_sky_plunge";
                 default -> "idle";
             };
             time=(action==YangJian.THROW && elapsed>=50?elapsed-50:
@@ -242,7 +248,7 @@ public final class YangJianModel {
             eyeGlow=beam.warning(partial)?1+2*Mth.clamp(beam.age(partial)/Math.max(1,beam.windup()),0,1):2;
         } else if(boss.deathTime==0 && action!=YangJian.PHASE_CLEAR && !boss.isTransitioning()) {
             float pitch=boss.targetLookPitch(partial);
-            if(boss.phase()==3 && action!=YangJian.DIVINE_SWEEP) {
+            if(boss.phase()==3 && action!=YangJian.DIVINE_SWEEP && !(action==YangJian.EYE_BLINK_CLEAVE && boss.comboStep()==1)) {
                 float yaw=Mth.rotLerp(partial,boss.yHeadRotO,boss.yHeadRot);
                 aimHead(bodyYaw,Vec3.directionFromRotation(pitch,yaw));
             } else if(Math.abs(pitch)>.01F) {
@@ -255,7 +261,8 @@ public final class YangJianModel {
         float laserCharge=laserWindupCharge(action,elapsed);
         if(laserCharge>0)eyeGlow=Math.max(eyeGlow,1F+EYE_CHARGE_GLOW*laserCharge);
         // The lightning starts at the tip after this length multiplier is applied.
-        weaponLength=action==YangJian.DIVINE_SWEEP?YangJianSkill.divineSweepWeaponLength(elapsed):1F;
+        weaponLength=action==YangJian.DIVINE_SWEEP?YangJianSkill.divineSweepWeaponLength(elapsed)
+            :action==YangJian.EYE_BLINK_CLEAVE?YangJianSkill.eyeBlinkWeaponLength(elapsed):1F;
         weaponGrowth=action==YangJian.AXE_SUMMON && selectedWeapon==1?Mth.clamp((elapsed-24)/5F,.1F,1):1;
         if(action==YangJian.TRANSITION) {
             selectedWeapon=elapsed<YangJianTransition.SUMMON_START?0:1;
@@ -352,8 +359,10 @@ public final class YangJianModel {
     /** Charge of a pure laser windup, or 0 when the action does not charge the third eye. */
     private static float laserWindupCharge(int action,float elapsed) {
         YangJianSkill skill=YangJianSkill.forAction(action);
-        if(skill!=YangJianSkill.EYE_BEAM && skill!=YangJianSkill.SWEEP_BEAM && skill!=YangJianSkill.TRACKING_BEAM)
+        if(skill!=YangJianSkill.EYE_BEAM && skill!=YangJianSkill.SWEEP_BEAM && skill!=YangJianSkill.TRACKING_BEAM
+                && skill!=YangJianSkill.EYE_BLINK_CLEAVE)
             return 0;
+        if(skill==YangJianSkill.EYE_BLINK_CLEAVE && elapsed>=skill.stepWindup(0)+skill.stepActive(0))return 0;
         return Mth.clamp(elapsed/Math.max(1,skill.stepWindup(0)),0,1);
     }
 

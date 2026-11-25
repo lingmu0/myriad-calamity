@@ -54,11 +54,11 @@ def main():
     runtime=json.loads((ASSETS/'boss_animations/yang_jian.json').read_text('utf8'))['clips']
     authored=json.loads((ROOT/'modeling/yang_jian-animation-source.json').read_text('utf8'))['clips']
     required={'idle','walk','combo','four_combo','six_combo','throw','throw_followup','recall','thrust_windup','thrust',
-              'summon_hound','coordinated','guard','counter_windup','counter','phase_clear','death',
-              'transition','axe_summon','axe_slam','axe_combo','flying_swords','draw_slash','whip_sweep','whip_spin',
-              'lightning_thrust','invisible_dash','delayed_combo','p2_idle_axe','p2_idle_sword','p2_idle_whip',
+              'summon_hound','coordinated','guard','counter_windup','counter','vault_slam','cloud_feint_thrust','phase_clear','death',
+              'transition','axe_summon','axe_slam','axe_combo','axe_draw_mixup','flying_swords','draw_slash','whip_sweep','whip_spin',
+              'whip_lance_reel','lightning_thrust','invisible_dash','delayed_combo','p2_idle_axe','p2_idle_sword','p2_idle_whip',
               'p3_idle','third_eye_open','eye_beam','sweep_beam','tracking_beam','myriad_swords','sword_rain',
-              'red_thunder','divine_sweep','divine_spin','aerial_combo','divine_judgement','p3_death',
+              'red_thunder','divine_sweep','divine_spin','aerial_combo','divine_judgement','eye_blink_cleave','crimson_sky_plunge','p3_death',
               'step_approach','step_approach_axe','step_approach_sword','step_approach_whip'}
     assert required<=runtime.keys()
     for name,clip in runtime.items():
@@ -165,8 +165,8 @@ def main():
         keys=runtime['transition']['bones'][bone]['rotation']
         assert any(max(k[axis] for k in keys)-min(k[axis] for k in keys)>2 for axis in (1,2,3)),(bone,'Transition joint is static')
     java=(ROOT/'src/main/java/net/xuwu/myriadcalamity/entity/YangJianSkill.java').read_text('utf8')
-    for name in ['COMBO','FOUR_COMBO','SIX_COMBO','AXE_COMBO','DELAYED_COMBO']:
-        pattern=rf'{name}\(\d+,\s*\d+,\s*new int\[\]\{{([\d,]+)\}},\s*(\d+),\s*(\d+),\s*(\d+)'
+    for name in ['COMBO','FOUR_COMBO','SIX_COMBO','CLOUD_FEINT_THRUST','AXE_COMBO','DELAYED_COMBO','AXE_DRAW_MIXUP','WHIP_LANCE_REEL','EYE_BLINK_CLEAVE']:
+        pattern=rf'{name}\(\d+,\s*\d+,\s*\d+,\s*new int\[\]\{{([\d,]+)\}},\s*(\d+),\s*(\d+),\s*(\d+)'
         match=re.search(pattern,java)
         assert match,name
         windups=list(map(int,match[1].split(',')));active,gap,recovery=map(int,match.group(2,3,4))
@@ -175,8 +175,8 @@ def main():
         meta=authored[name.lower()]['timing']
         assert meta['step_start_ticks']==starts and meta['hit_ticks']==hits,(name,'server timing changed')
         assert abs(runtime[name.lower()]['length']*20-(tick-gap+recovery))<1e-5
-    for name in ['AXE_SUMMON','AXE_SLAM','FLYING_SWORDS','DRAW_SLASH','WHIP_SWEEP','WHIP_SPIN','LIGHTNING_THRUST','INVISIBLE_DASH']:
-        pattern=rf'{name}\(\d+,\s*\d+,\s*new int\[\]\{{([\d,]+)\}},\s*(\d+),\s*(\d+),\s*(\d+)'
+    for name in ['VAULT_SLAM','AXE_SUMMON','AXE_SLAM','FLYING_SWORDS','DRAW_SLASH','WHIP_SWEEP','WHIP_SPIN','LIGHTNING_THRUST','INVISIBLE_DASH']:
+        pattern=rf'{name}\(\d+,\s*\d+,\s*\d+,\s*new int\[\]\{{([\d,]+)\}},\s*(\d+),\s*(\d+),\s*(\d+)'
         match=re.search(pattern,java);assert match,name
         w=int(match[1]);active,gap,recovery=map(int,match.group(2,3,4))
         clip=runtime[name.lower()]
@@ -185,8 +185,8 @@ def main():
         if meta:assert meta['hit_ticks']==[w] and meta['active_ticks']==active,(name,'hit')
     weapons=json.loads((ASSETS/'mesh/yang_jian_weapons.json').read_text('utf8'))
     for name in ['THIRD_EYE_OPEN','EYE_BEAM','SWEEP_BEAM','TRACKING_BEAM','MYRIAD_SWORDS','SWORD_RAIN',
-                 'RED_THUNDER','DIVINE_SWEEP','AERIAL_COMBO','DIVINE_JUDGEMENT']:
-        match=re.search(rf'{name}\(\d+,\s*\d+,\s*new int\[\]\{{(\d+)\}},\s*(\d+),\s*(\d+),\s*(\d+)',java)
+                 'RED_THUNDER','DIVINE_SWEEP','AERIAL_COMBO','DIVINE_JUDGEMENT','CRIMSON_SKY_PLUNGE']:
+        match=re.search(rf'{name}\(\d+,\s*\d+,\s*\d+,\s*new int\[\]\{{(\d+)\}},\s*(\d+),\s*(\d+),\s*(\d+)',java)
         assert match,name
         w,active,gap,recovery=map(int,match.groups())
         assert abs(runtime[name.lower()]['length']*20-(w+active+recovery))<1e-5,(name,'P3 clip duration')
