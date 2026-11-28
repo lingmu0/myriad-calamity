@@ -144,12 +144,39 @@ public final class BattleMusicRulesTest {
         check(!BattleMusicRules.restartYangJianTrack(true,true,true,false),"An active Yang Jian track keeps playing");
     }
 
+    private static void divineDragonTransitionsBetweenPhaseOneAndPhaseTwo() {
+        check(BattleMusicRules.restartDivineDragonTrack(true,false,false,-1,1),"First observation starts Phase 1 score");
+        check(!BattleMusicRules.restartDivineDragonTrack(true,true,true,1,1),"Healthy Phase 1 score keeps playing");
+        check(BattleMusicRules.restartDivineDragonTrack(true,true,false,1,1),"Finished Phase 1 score loops");
+        check(BattleMusicRules.restartDivineDragonTrack(true,true,true,1,2),"Entering Phase 2 switches immediately to Phase 2 score");
+        check(!BattleMusicRules.restartDivineDragonTrack(true,true,true,2,2),"Healthy Phase 2 score keeps playing");
+        check(BattleMusicRules.restartDivineDragonTrack(true,false,true,2,2),"A different Divine Dragon restarts the score");
+        check(BattleMusicRules.restartDivineDragonTrack(false,true,true,2,2),"Changing level restarts the score");
+
+        // Loop crossfade window & smoothstep volume envelope checks
+        check(!BattleMusicRules.shouldCrossfadeLoop(2600,2691,BattleMusicRules.LOOP_CROSSFADE_TICKS),
+            "Track before tail crossfade window keeps playing single stream");
+        check(BattleMusicRules.shouldCrossfadeLoop(2691-BattleMusicRules.LOOP_CROSSFADE_TICKS,2691,BattleMusicRules.LOOP_CROSSFADE_TICKS),
+            "Track entering tail crossfade window triggers overlapping next loop");
+        check(!BattleMusicRules.shouldCrossfadeLoop(60,80,BattleMusicRules.LOOP_CROSSFADE_TICKS),
+            "Short non-looping intro cuts never self-crossfade");
+        check(BattleMusicRules.crossfadeVolume(0,64,0,0)>=0.019F && BattleMusicRules.crossfadeVolume(0,64,0,0)<0.05F,
+            "Opening fade-in starts at low non-zero gain so OpenAL allocates channel");
+        check(Math.abs(BattleMusicRules.crossfadeVolume(64,64,0,0)-1.0F)<1e-5F,
+            "Fade-in reaches full volume cleanly at fadeInTicks");
+        check(BattleMusicRules.crossfadeVolume(500,64,32,64)>0.4F && BattleMusicRules.crossfadeVolume(500,64,32,64)<0.6F,
+            "Midpoint of tail fade-out sits smoothly near 50% volume");
+        check(BattleMusicRules.crossfadeVolume(500,64,1,64)<0.05F,
+            "Tail fade-out tapers smoothly to near-zero before stopping");
+    }
+
     public static void main(String[] args) {
         dancerLadderKeepsOneStartPerPhase();
         finishedTrackLoopsAtTheSamePhase();
         phaseAndLevelChangesReKey();
         rulesAreStateless();
         yangJianEntranceHandsOffToTheMainTheme();
+        divineDragonTransitionsBetweenPhaseOneAndPhaseTwo();
         System.out.println("Battle music rules: "+checks+" checks passed");
     }
 }

@@ -46,5 +46,108 @@
         "stream": true
       }
     ]
+  },
+  "music.divine_dragon_phase1": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/divine_dragon_phase1",
+        "stream": true
+      }
+    ]
+  },
+  "music.divine_dragon_phase2": {
+    "sounds": [
+      {
+        "name": "myriad_calamity:music/divine_dragon_phase2",
+        "stream": true
+      }
+    ]
+  },
+  "entity.divine_dragon.ambient": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_ambient",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/ambient_1",
+      "myriad_calamity:entity/divine_dragon/ambient_2"
+    ]
+  },
+  "entity.divine_dragon.coil": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_coil",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/coil_1",
+      "myriad_calamity:entity/divine_dragon/coil_2"
+    ]
+  },
+  "entity.divine_dragon.sword_swing": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_sword_swing",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/sword_swing_1",
+      "myriad_calamity:entity/divine_dragon/sword_swing_2",
+      "myriad_calamity:entity/divine_dragon/sword_draw_1"
+    ]
+  },
+  "entity.divine_dragon.wind_slash": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_wind_slash",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/wind_slash_1",
+      "myriad_calamity:entity/divine_dragon/wind_slash_2",
+      "myriad_calamity:entity/divine_dragon/wind_blade_1",
+      "myriad_calamity:entity/divine_dragon/wind_blade_2"
+    ]
+  },
+  "entity.divine_dragon.gale_roar": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_gale_roar",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/gale_roar_1",
+      "myriad_calamity:entity/divine_dragon/gale_roar_2"
+    ]
+  },
+  "entity.divine_dragon.attack_roar": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_attack_roar",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/attack_roar_1",
+      "myriad_calamity:entity/divine_dragon/attack_roar_2"
+    ]
+  },
+  "entity.divine_dragon.thunder_roar": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_thunder_roar",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/thunder_roar_1",
+      "myriad_calamity:entity/divine_dragon/thunder_roar_2"
+    ]
+  },
+  "entity.divine_dragon.thunder_charge": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_thunder_charge",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/thunder_charge_1",
+      "myriad_calamity:entity/divine_dragon/thunder_charge_2"
+    ]
+  },
+  "entity.divine_dragon.lightning_strike": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_lightning_strike",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/lightning_strike_1",
+      "myriad_calamity:entity/divine_dragon/lightning_strike_2"
+    ]
+  },
+  "entity.divine_dragon.cataclysm": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_cataclysm",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/cataclysm_1",
+      "myriad_calamity:entity/divine_dragon/cataclysm_2"
+    ]
+  },
+  "entity.divine_dragon.death_cry": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_death_cry",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/death_cry_1",
+      "myriad_calamity:entity/divine_dragon/death_cry_2"
+    ]
+  },
+  "entity.divine_dragon.hurt": {
+    "subtitle": "subtitles.myriad_calamity.divine_dragon_hurt",
+    "sounds": [
+      "myriad_calamity:entity/divine_dragon/hurt_1",
+      "myriad_calamity:entity/divine_dragon/hurt_2"
+    ]
   }
 }
