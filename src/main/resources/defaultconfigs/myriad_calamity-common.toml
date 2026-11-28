@@ -16,3 +16,8 @@ phase3HealthFloor = 0.4
 showAttackIndicators = false
 houndHealth = 40.0
 houndDamage = 5.0
+
+# Divine Dragon: long-range artillery encounter atop the Giant Sakura Tree in the Divine Realm.
+[divineDragon]
+health = 800.0
+damage = 10.0

@@ -107,7 +107,10 @@ EGG_DANCER = {'o': '1a2430', 'g': '61737a', 'H': '9eb5bd', 'j': '4a606d',
               'c': '344655', 's': '2a3445', 'p': 'ffdf8b', 'G': 'd8a958'}
 EGG_YANG_JIAN = {'o': '20202a', 'g': '6e6c7b', 'H': 'a4a8b7', 'j': '42465c',
                  'c': '303746', 's': '2c2533', 'p': 'f2d6aa', 'G': 'b79864'}
+EGG_DRAGON = {'o': '263e3d', 'g': 'a8c6be', 'H': 'e6ecea', 'j': '8bab9e',
+              'c': '6d8e82', 's': '557367', 'p': 'a4e7ce', 'G': '72c6a2'}
 SPRITES = {
+    'divine_dragon_spawn_egg': (EGG, EGG_DRAGON),
     'winding_key': (KEY, METAL), 'cogwork_heart': (HEART, COG),
     'cloud_talisman': (TALISMAN, PAPER), 'divine_sigil': (SIGIL, SEAL),
     'cogwork_dancer_spawn_egg': (EGG, EGG_DANCER), 'yang_jian_spawn_egg': (EGG, EGG_YANG_JIAN),

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "GSG",
+    " E "
+  ],
+  "key": {
+    "P": "minecraft:pink_petals",
+    "G": "minecraft:gold_ingot",
+    "S": "minecraft:cherry_sapling",
+    "E": "minecraft:ender_pearl"
+  },
+  "result": {
+    "count": 1,
+    "id": "myriad_calamity:everblossom_branch"
+  }
+}

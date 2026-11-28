@@ -1,0 +1,12 @@
+{
+  "source": "modeling/divine_dragon.bbmodel",
+  "source_sha256": "f568a101dd29c53afab6de435cfc64df0bbe54a3f0ca5e27d625ee9db2edd05b",
+  "cubes": 843,
+  "bones": 86,
+  "rendered_faces": 5058,
+  "glow_faces": 564,
+  "texture_size": [
+    1024,
+    1024
+  ]
+}

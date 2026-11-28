@@ -25,8 +25,12 @@ abstract class RiggedBossRenderer<E extends Mob>
         void draw(PoseStack pose,VertexConsumer vertices,int light,int overlay,int tint);
     }
 
+    record OverlayMesh(RenderType type, Mesh mesh) {}
+
     static final class State extends LivingEntityRenderState {
         Mesh mesh;
+        RenderType meshType;
+        OverlayMesh overlayMesh;
         Identifier texture;
         boolean veiled;
         CombatGeometry effects;
@@ -55,7 +59,8 @@ abstract class RiggedBossRenderer<E extends Mob>
         boolean visible=isBodyVisible(state);
         boolean translucent=!visible && !state.isInvisibleToPlayer;
         if(!visible && !translucent && !state.veiled && !state.appearsGlowing())return;
-        RenderType type=state.veiled?RenderTypes.entityTranslucent(state.texture)
+        if(state.mesh==null)return;
+        RenderType type=state.meshType!=null?state.meshType:state.veiled?RenderTypes.entityTranslucent(state.texture)
             :translucent?RenderTypes.entityTranslucentCullItemTarget(state.texture)
             :visible?RenderTypes.entityCutout(state.texture):RenderTypes.outline(state.texture);
         int color=state.veiled?0x35FFFFFF:translucent?0x26FFFFFF:0xFFFFFFFF;
@@ -63,6 +68,9 @@ abstract class RiggedBossRenderer<E extends Mob>
         Mesh mesh=state.mesh;
         collector.submitCustomGeometry(pose,type,(entry,vertices)->
             CombatGeometry.draw(entry,vertices,(stack,buffer)->mesh.draw(stack,buffer,light,overlay,color)));
+        OverlayMesh extra=state.overlayMesh;
+        if(visible && extra!=null)collector.submitCustomGeometry(pose,extra.type(),(entry,vertices)->
+            CombatGeometry.draw(entry,vertices,(stack,buffer)->extra.mesh().draw(stack,buffer,light,overlay,color)));
     }
 
     @Override public void submit(State state,PoseStack pose,SubmitNodeCollector collector,CameraRenderState camera) {
