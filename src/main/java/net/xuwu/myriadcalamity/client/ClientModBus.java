@@ -29,11 +29,18 @@ public final class ClientModBus {
         event.registerEntityRenderer(MyriadCalamity.DIVINE_FLYING_SWORD.get(),DivineFlyingSwordRenderer::new);
         event.registerEntityRenderer(MyriadCalamity.LIGHTNING_TRAIL.get(),LightningTrailRenderer::new);
         event.registerEntityRenderer(MyriadCalamity.YANG_JIAN_HAZARD.get(),YangJianHazardRenderer::new);
+        event.registerEntityRenderer(MyriadCalamity.DIVINE_DRAGON.get(),DivineDragonRenderer::new);
+        event.registerEntityRenderer(MyriadCalamity.SAKURA_WIND_BLADE.get(),SakuraWindBladeRenderer::new);
+        event.registerEntityRenderer(MyriadCalamity.DIVINE_THUNDER_HAZARD.get(),DivineThunderHazardRenderer::new);
+        event.registerEntityRenderer(MyriadCalamity.SAKURA_RING_WAVE.get(),SakuraRingWaveRenderer::new);
+        event.registerEntityRenderer(MyriadCalamity.SAKURA_TORNADO.get(),SakuraTornadoRenderer::new);
+        event.registerEntityRenderer(MyriadCalamity.SAKURA_FEATHER_BLADE.get(),SakuraFeatherBladeRenderer::new);
     }
 
     @SubscribeEvent
     public static void dimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
         event.register(MyriadCalamity.id("cloud_realm"), new CloudRealmEffects());
+        event.register(MyriadCalamity.id("divine_realm"), new DivineRealmEffects());
     }
 
     private ClientModBus() {}

@@ -30,7 +30,8 @@ jsons={str(p.relative_to(RES)).replace('\\','/'):json.loads(p.read_text('utf8'))
 langs=[jsons[f'assets/{NS}/lang/{lang}.json'] for lang in ['zh_cn','en_us']]
 check(langs[0].keys()==langs[1].keys(),'Language keys must match')
 for phase in range(1,5):check(f'boss.{NS}.phase{phase}' in langs[0],f'Phase {phase} label')
-for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_talisman','divine_sigil','yang_jian_spawn_egg']:
+for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_talisman','divine_sigil','yang_jian_spawn_egg',
+             'everblossom_branch','divine_dragon_tears','divine_dragon_spawn_egg']:
     model=jsons[f'assets/{NS}/models/item/{name}.json']
     check(f'item.{NS}.{name}' in langs[0],f'Item name: {name}')
     for texture in model.get('textures',{}).values():
@@ -38,7 +39,7 @@ for name in ['winding_key','cogwork_heart','cogwork_dancer_spawn_egg','cloud_tal
         if namespace==NS:check((RES/f'assets/{NS}/textures/{relative}.png').exists(),f'Model texture: {texture}')
 for png in RES.rglob('*.png'):
     dimensions=read_png(png)
-    expected = {'yang_jian.png': (2048,2048), 'cogwork_dancer.png': (1024,1024), 'cogwork_dancer_silver.png': (1024,1024), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18)}
+    expected = {'yang_jian.png': (2048,2048), 'cogwork_dancer.png': (1024,1024), 'cogwork_dancer_silver.png': (1024,1024), 'celestial_hound.png': (64,64), 'roar_mark.png': (18,18), 'divine_dragon.png': (512,512)}
     default_dimensions = {'entity': (256,256), 'item': (16,16), 'effect': (1,1)}
     check(dimensions==expected.get(png.name, default_dimensions.get(png.parent.name,(32,32))),f'Texture dimensions: {png}')
 recipe=jsons[f'data/{NS}/recipes/winding_key.json']
@@ -73,7 +74,29 @@ check('showAttackIndicators = false' in config_text,'Attack-range indicator swit
 for key in ['yang_jian_p1','yang_jian_p2','yang_jian_transition','yang_jian_p2_clear',
             'yang_jian_p3','yang_jian_eye_open','yang_jian_judgement','yang_jian_defeated']:
     check(f'boss.{NS}.{key}' in langs[0],f'Yang Jian stage label: {key}')
+realm=jsons[f'data/{NS}/dimension/divine_realm.json']
+check(realm['type']==f'{NS}:divine_realm' and realm['generator']['settings']['biome']==f'{NS}:sakura_cloud_sea',
+      'Divine trial dimension references its own type and biome')
+check(f'data/{NS}/dimension_type/divine_realm.json' in jsons
+      and f'data/{NS}/worldgen/biome/sakura_cloud_sea.json' in jsons, 'Divine trial type and biome packaged')
+branch_recipe=jsons[f'data/{NS}/recipes/everblossom_branch.json']
+check(branch_recipe['result']['item']==f'{NS}:everblossom_branch', 'Everblossom branch recipe result')
+dragon_loot=jsons[f'data/{NS}/loot_tables/entities/divine_dragon.json']
+check(any(entry.get('name')==f'{NS}:divine_dragon_tears' for pool in dragon_loot['pools']
+          for entry in pool['entries']), 'Divine Dragon drops its trophy')
+
 sound_def=jsons[f'assets/{NS}/sounds.json']
+for phase in (1, 2):
+    music=sound_def[f'music.divine_dragon_phase{phase}']['sounds']
+    check(music==[{'name': f'{NS}:music/divine_dragon_phase{phase}', 'stream': True}],
+          f'Streamed Divine Dragon phase {phase} music')
+for key, definition in sound_def.items():
+    if not key.startswith(('entity.divine_dragon.', 'music.divine_dragon_')):
+        continue
+    for sound in definition['sounds']:
+        namespace, name=(sound['name'] if isinstance(sound,dict) else sound).split(':', 1)
+        ogg=RES/f'assets/{namespace}/sounds/{name}.ogg'
+        check(ogg.is_file() and ogg.read_bytes()[:4]==b'OggS', f'Divine Dragon sound: {name}')
 for phase in range(1,5):
     key=f'music.cogwork_dancer_phase{phase}'
     check(key in sound_def and len(sound_def[key]['sounds'])==1,'Phase music sound definition: '+key)
@@ -184,6 +207,12 @@ with zipfile.ZipFile(jars[0]) as jar:
         entry=f'net/xuwu/myriadcalamity/{name}.class'
         check(entry in names,f'Packaged Yang Jian class {name}')
         check(struct.unpack('>H',jar.read(entry)[6:8])[0]==61,f'Java 17 Yang Jian class {name}')
+    for name in ['entity/DivineDragon','entity/DivineDragonHitboxes','client/DivineDragonRenderer',
+                 'client/DivineDragonVfx','client/DivineRealmEffects','world/DivineArena','world/DivineArenaData',
+                 'item/EverblossomBranchItem','item/DivineDragonTearsItem']:
+        entry=f'net/xuwu/myriadcalamity/{name}.class'
+        check(entry in names,f'Packaged Divine Dragon class {name}')
+        check(struct.unpack('>H',jar.read(entry)[6:8])[0]==61,f'Java 17 Divine Dragon class {name}')
     metadata=jar.read('META-INF/mods.toml').decode('utf8')
     check('${' not in metadata,'Expanded metadata')
     check(re.search(r'\bversion\s*=\s*"'+re.escape(version)+r'"',metadata),'JAR metadata matches release version')

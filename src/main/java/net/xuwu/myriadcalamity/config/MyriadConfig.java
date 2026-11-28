@@ -15,6 +15,8 @@ public final class MyriadConfig {
     public static final boolean DEFAULT_SHOW_ATTACK_INDICATORS = false;
     public static final double DEFAULT_HOUND_HEALTH = 40.0D;
     public static final double DEFAULT_HOUND_DAMAGE = 5.0D;
+    public static final double DEFAULT_DIVINE_DRAGON_HEALTH = 800.0D;
+    public static final double DEFAULT_DIVINE_DRAGON_DAMAGE = 10.0D;
     public static final ForgeConfigSpec SPEC;
     public static final ForgeConfigSpec.DoubleValue DANCER_HEALTH;
     public static final ForgeConfigSpec.DoubleValue DANCER_DAMAGE;
@@ -27,6 +29,8 @@ public final class MyriadConfig {
     public static final ForgeConfigSpec.BooleanValue SHOW_ATTACK_INDICATORS;
     public static final ForgeConfigSpec.DoubleValue HOUND_HEALTH;
     public static final ForgeConfigSpec.DoubleValue HOUND_DAMAGE;
+    public static final ForgeConfigSpec.DoubleValue DIVINE_DRAGON_HEALTH;
+    public static final ForgeConfigSpec.DoubleValue DIVINE_DRAGON_DAMAGE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -59,6 +63,12 @@ public final class MyriadConfig {
         HOUND_DAMAGE = builder.comment("Base celestial hound pounce damage.")
             .defineInRange("houndDamage", DEFAULT_HOUND_DAMAGE, .1D, 1_000.0D);
         builder.pop();
+        builder.push("divineDragon");
+        DIVINE_DRAGON_HEALTH = builder.comment("Maximum health of the Divine Dragon boss.")
+            .defineInRange("health", DEFAULT_DIVINE_DRAGON_HEALTH, 1.0D, 1_000_000.0D);
+        DIVINE_DRAGON_DAMAGE = builder.comment("Base damage for the Divine Dragon's wind blades and lightning strikes.")
+            .defineInRange("damage", DEFAULT_DIVINE_DRAGON_DAMAGE, .1D, 1_000.0D);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -87,6 +97,11 @@ public final class MyriadConfig {
     public static float houndDamage() { return HOUND_DAMAGE.get().floatValue(); }
     public static float scaleYangJianDamage(float normalDamage) {
         return normalDamage * yangJianDamage() / (float) DEFAULT_YANG_JIAN_DAMAGE;
+    }
+    public static float divineDragonHealth() { return DIVINE_DRAGON_HEALTH.get().floatValue(); }
+    public static float divineDragonDamage() { return DIVINE_DRAGON_DAMAGE.get().floatValue(); }
+    public static float scaleDivineDragonDamage(float normalDamage) {
+        return normalDamage * divineDragonDamage() / (float) DEFAULT_DIVINE_DRAGON_DAMAGE;
     }
 
     private MyriadConfig() {}

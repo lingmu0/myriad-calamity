@@ -38,7 +38,15 @@ import net.xuwu.myriadcalamity.entity.TriPointedBlade;
 import net.xuwu.myriadcalamity.entity.DivineFlyingSword;
 import net.xuwu.myriadcalamity.entity.LightningTrail;
 import net.xuwu.myriadcalamity.entity.YangJianHazard;
+import net.xuwu.myriadcalamity.entity.DivineDragon;
+import net.xuwu.myriadcalamity.entity.SakuraWindBlade;
+import net.xuwu.myriadcalamity.entity.DivineThunderHazard;
+import net.xuwu.myriadcalamity.entity.SakuraRingWave;
+import net.xuwu.myriadcalamity.entity.SakuraTornadoEntity;
+import net.xuwu.myriadcalamity.entity.SakuraFeatherBlade;
 import net.xuwu.myriadcalamity.item.CloudTalismanItem;
+import net.xuwu.myriadcalamity.item.EverblossomBranchItem;
+import net.xuwu.myriadcalamity.item.DivineDragonTearsItem;
 
 @Mod(MyriadCalamity.ID)
 public final class MyriadCalamity {
@@ -76,11 +84,43 @@ public final class MyriadCalamity {
     public static final RegistryObject<EntityType<YangJianHazard>> YANG_JIAN_HAZARD = ENTITIES.register("yang_jian_hazard",
         () -> EntityType.Builder.<YangJianHazard>of(YangJianHazard::new, MobCategory.MISC).sized(.2F, .2F)
             .fireImmune().clientTrackingRange(16).updateInterval(1).build(ID + ":yang_jian_hazard"));
+    public static final RegistryObject<EntityType<DivineDragon>> DIVINE_DRAGON = ENTITIES.register("divine_dragon",
+        () -> EntityType.Builder.of(DivineDragon::new, MobCategory.MONSTER).sized(12.0F, 26.0F)
+            .fireImmune().clientTrackingRange(24).updateInterval(1).build(ID + ":divine_dragon"));
+    public static final RegistryObject<EntityType<SakuraWindBlade>> SAKURA_WIND_BLADE = ENTITIES.register("sakura_wind_blade",
+        () -> EntityType.Builder.<SakuraWindBlade>of(SakuraWindBlade::new, MobCategory.MISC).sized(1.0F, 1.0F)
+            .fireImmune().clientTrackingRange(20).updateInterval(1).build(ID + ":sakura_wind_blade"));
+    public static final RegistryObject<EntityType<DivineThunderHazard>> DIVINE_THUNDER_HAZARD = ENTITIES.register("divine_thunder_hazard",
+        () -> EntityType.Builder.<DivineThunderHazard>of(DivineThunderHazard::new, MobCategory.MISC).sized(0.4F, 0.4F)
+            .fireImmune().clientTrackingRange(24).updateInterval(1).build(ID + ":divine_thunder_hazard"));
+    public static final RegistryObject<EntityType<SakuraRingWave>> SAKURA_RING_WAVE = ENTITIES.register("sakura_ring_wave",
+        () -> EntityType.Builder.<SakuraRingWave>of(SakuraRingWave::new, MobCategory.MISC).sized(1.0F, 1.0F)
+            .fireImmune().clientTrackingRange(24).updateInterval(1).build(ID + ":sakura_ring_wave"));
+    public static final RegistryObject<EntityType<SakuraTornadoEntity>> SAKURA_TORNADO = ENTITIES.register("sakura_tornado",
+        () -> EntityType.Builder.<SakuraTornadoEntity>of(SakuraTornadoEntity::new, MobCategory.MISC).sized(2.0F, 4.0F)
+            .fireImmune().clientTrackingRange(24).updateInterval(1).build(ID + ":sakura_tornado"));
+    public static final RegistryObject<EntityType<SakuraFeatherBlade>> SAKURA_FEATHER_BLADE = ENTITIES.register("sakura_feather_blade",
+        () -> EntityType.Builder.<SakuraFeatherBlade>of(SakuraFeatherBlade::new, MobCategory.MISC).sized(0.8F, 0.8F)
+            .fireImmune().clientTrackingRange(24).updateInterval(1).build(ID + ":sakura_feather_blade"));
     public static final RegistryObject<SoundEvent> DANCER_MUSIC_PHASE2 = music("music.cogwork_dancer_phase2");
     public static final RegistryObject<SoundEvent> DANCER_MUSIC_PHASE3 = music("music.cogwork_dancer_phase3");
     public static final RegistryObject<SoundEvent> DANCER_MUSIC_PHASE4 = music("music.cogwork_dancer_phase4");
     public static final RegistryObject<SoundEvent> YANG_JIAN_MUSIC_INTRO = music("music.yang_jian_bgm_intro");
     public static final RegistryObject<SoundEvent> YANG_JIAN_MUSIC_MAIN = music("music.yang_jian_bgm_main");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_MUSIC_PHASE1 = music("music.divine_dragon_phase1");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_MUSIC_PHASE2 = music("music.divine_dragon_phase2");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_AMBIENT = music("entity.divine_dragon.ambient");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_COIL = music("entity.divine_dragon.coil");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_SWORD_SWING = music("entity.divine_dragon.sword_swing");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_WIND_SLASH = music("entity.divine_dragon.wind_slash");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_GALE_ROAR = music("entity.divine_dragon.gale_roar");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_ATTACK_ROAR = music("entity.divine_dragon.attack_roar");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_THUNDER_ROAR = music("entity.divine_dragon.thunder_roar");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_THUNDER_CHARGE = music("entity.divine_dragon.thunder_charge");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_LIGHTNING_STRIKE = music("entity.divine_dragon.lightning_strike");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_CATACLYSM = music("entity.divine_dragon.cataclysm");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_DEATH_CRY = music("entity.divine_dragon.death_cry");
+    public static final RegistryObject<SoundEvent> DIVINE_DRAGON_HURT = music("entity.divine_dragon.hurt");
     public static final RegistryObject<Item> CORE = ITEMS.register("cogwork_heart", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
     public static final RegistryObject<WindingKeyItem> KEY = ITEMS.register("winding_key", () -> new WindingKeyItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC)));
     public static final RegistryObject<ForgeSpawnEggItem> EGG = ITEMS.register("cogwork_dancer_spawn_egg",
@@ -90,11 +130,18 @@ public final class MyriadCalamity {
     public static final RegistryObject<Item> DIVINE_SIGIL = ITEMS.register("divine_sigil", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
     public static final RegistryObject<ForgeSpawnEggItem> YANG_JIAN_EGG = ITEMS.register("yang_jian_spawn_egg",
         () -> new ForgeSpawnEggItem(YANG_JIAN, 0x202934, 0xc3af7d, new Item.Properties()));
+    public static final RegistryObject<EverblossomBranchItem> EVERBLOSSOM_BRANCH = ITEMS.register("everblossom_branch",
+        () -> new EverblossomBranchItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+    public static final RegistryObject<DivineDragonTearsItem> DIVINE_DRAGON_TEARS = ITEMS.register("divine_dragon_tears",
+        () -> new DivineDragonTearsItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC)));
+    public static final RegistryObject<ForgeSpawnEggItem> DIVINE_DRAGON_EGG = ITEMS.register("divine_dragon_spawn_egg",
+        () -> new ForgeSpawnEggItem(DIVINE_DRAGON, 0xE6ECEA, 0x72C6A2, new Item.Properties()));
     public static final RegistryObject<CreativeModeTab> TAB = TABS.register("main", () -> CreativeModeTab.builder()
         .title(Component.translatable("itemGroup." + ID)).icon(() -> KEY.get().getDefaultInstance())
         .displayItems((p, output) -> {
             output.accept(KEY.get()); output.accept(EGG.get()); output.accept(CORE.get());
             output.accept(CLOUD_TALISMAN.get()); output.accept(YANG_JIAN_EGG.get()); output.accept(DIVINE_SIGIL.get());
+            output.accept(EVERBLOSSOM_BRANCH.get()); output.accept(DIVINE_DRAGON_EGG.get()); output.accept(DIVINE_DRAGON_TEARS.get());
         }).build());
 
     // Forge 1.20.1 loads mods through a no-argument constructor and hands out the bus here.
@@ -114,6 +161,7 @@ public final class MyriadCalamity {
         event.put(DANCER.get(), CogworkDancer.attributes().build());
         event.put(YANG_JIAN.get(), YangJian.attributes().build());
         event.put(CELESTIAL_HOUND.get(), CelestialHound.attributes().build());
+        event.put(DIVINE_DRAGON.get(), DivineDragon.attributes().build());
     }
     private static RegistryObject<SoundEvent> music(String path) {
         return SOUND_EVENTS.register(path, () -> SoundEvent.createVariableRangeEvent(id(path)));
